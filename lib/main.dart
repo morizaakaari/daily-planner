@@ -577,7 +577,7 @@ Rules:
                               if (item.generatedTweet != null) ...[
                                 Container(
                                   padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(8), border: BorderSide(color: Colors.blueAccent.withOpacity(0.4))),
+                                  decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blueAccent.withOpacity(0.4))),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
