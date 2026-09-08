@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 void main() {
@@ -12,7 +13,7 @@ class RoutineMasterApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'VibeFlow Planner',
+      title: 'VibeFlow Master',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0F172A),
@@ -22,17 +23,58 @@ class RoutineMasterApp extends StatelessWidget {
           secondary: Color(0xFF38BDF8),
         ),
       ),
-      home: const ScheduleScreen(),
+      home: const MainNavigationScreen(),
     );
   }
 }
 
+class MainNavigationScreen extends StatefulWidget {
+  const MainNavigationScreen({super.key});
+
+  @override
+  State<MainNavigationScreen> createState() => _MainNavigationScreenState();
+}
+
+class _MainNavigationScreenState extends State<MainNavigationScreen> {
+  int _currentIndex = 0;
+  final List<Widget> _screens = [
+    const ScheduleScreen(),
+    const CourseFinderScreen(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _screens[_currentIndex],
+      bottomNavigationBar: NavigationBar(
+        backgroundColor: const Color(0xFF1E293B),
+        indicatorColor: const Color(0xFF6366F1).withOpacity(0.3),
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.schedule, color: Colors.white70),
+            selectedIcon: Icon(Icons.schedule, color: Color(0xFF6366F1)),
+            label: 'برنامه و ریپلای‌ها',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.school_outlined, color: Colors.white70),
+            selectedIcon: Icon(Icons.school, color: Color(0xFF38BDF8)),
+            label: 'کاوشگر دوره‌های AI',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== بخش اول: برنامه روزانه و ریپلای‌ها ====================
 class TaskItem {
   String id;
   String title;
-  String startTime; // HH:mm format
+  String startTime;
   int durationMinutes;
-  String category; // 'sprint-shegtory', 'sprint-blink', 'deepwork', 'workout', 'meal', 'learning'
+  String category;
   bool isEnabled;
 
   TaskItem({
@@ -106,12 +148,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       TaskItem(id: '17', title: 'اسپرینت ۴: ریپلای Blink (۱۵ عدد)', startTime: '18:20', durationMinutes: 20, category: 'sprint-blink'),
       TaskItem(id: '18', title: 'استراحت آزاد دور از مانیتور', startTime: '18:40', durationMinutes: 50, category: 'routine'),
       TaskItem(id: '19', title: 'اسپرینت ۵: ریپلای Shegtory (۲۰ عدد)', startTime: '19:30', durationMinutes: 20, category: 'sprint-shegtory'),
-      TaskItem(id: '20', title: 'تست پرامپت‌ها و کارهای سبک شبانه', startTime: '19:50', durationMinutes: 70, category: 'routine'),
+      TaskItem(id: '20', title: 'تست پرامپت‌ها و کارهای شبانه', startTime: '19:50', durationMinutes: 70, category: 'routine'),
       TaskItem(id: '21', title: 'شام و آرامش ذهنی', startTime: '21:00', durationMinutes: 60, category: 'meal'),
       TaskItem(id: '22', title: 'اسپرینت ۵: ریپلای Blink (۱۵ عدد)', startTime: '22:00', durationMinutes: 20, category: 'sprint-blink'),
       TaskItem(id: '23', title: 'اسپرینت ۶: ریپلای Shegtory (۲۰ عدد نهایی)', startTime: '22:20', durationMinutes: 20, category: 'sprint-shegtory'),
       TaskItem(id: '24', title: 'اسپرینت ۶: ریپلای Blink (۱۵ عدد Good Night)', startTime: '22:40', durationMinutes: 20, category: 'sprint-blink'),
-      TaskItem(id: '25', title: 'جمع‌بندی روز و آماده‌سازی خواب', startTime: '23:00', durationMinutes: 30, category: 'routine'),
+      TaskItem(id: '25', title: 'جمع‌بندی روز و خواب', startTime: '23:00', durationMinutes: 30, category: 'routine'),
     ];
   }
 
@@ -202,62 +244,6 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     );
   }
 
-  void _addNewTaskDialog() {
-    final titleController = TextEditingController();
-    final timeController = TextEditingController(text: '12:00');
-    final durationController = TextEditingController(text: '45');
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        title: const Text('افزودن تسک اختصاصی جدید', style: TextStyle(color: Colors.white)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(labelText: 'عنوان تسک جدید'),
-            ),
-            TextField(
-              controller: timeController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(labelText: 'ساعت شروع'),
-            ),
-            TextField(
-              controller: durationController,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(labelText: 'مدت (دقیقه)'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
-          ElevatedButton(
-            onPressed: () {
-              if (titleController.text.isNotEmpty) {
-                setState(() {
-                  tasks.add(TaskItem(
-                    id: DateTime.now().millisecondsSinceEpoch.toString(),
-                    title: titleController.text,
-                    startTime: timeController.text,
-                    durationMinutes: int.tryParse(durationController.text) ?? 30,
-                    category: 'custom',
-                  ));
-                });
-                _saveData();
-              }
-              Navigator.pop(ctx);
-            },
-            child: const Text('افزودن'),
-          )
-        ],
-      ),
-    );
-  }
-
   void _shiftSchedule(int minutes) {
     setState(() {
       for (var task in tasks) {
@@ -275,24 +261,24 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     });
     _saveData();
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('تمام برنامه‌ها $minutes دقیقه به جلو شیفت پیدا کردند')),
+      SnackBar(content: Text('برنامه‌ها $minutes دقیقه شیفت پیدا کردند')),
     );
   }
 
   Color _getCategoryColor(String cat) {
     switch (cat) {
       case 'sprint-shegtory':
-        return const Color(0xFF6366F1); // Indigo
+        return const Color(0xFF6366F1);
       case 'sprint-blink':
-        return const Color(0xFF06B6D4); // Cyan
+        return const Color(0xFF06B6D4);
       case 'deepwork':
-        return const Color(0xFFF59E0B); // Amber
+        return const Color(0xFFF59E0B);
       case 'workout':
-        return const Color(0xFF10B981); // Emerald
+        return const Color(0xFF10B981);
       case 'meal':
-        return const Color(0xFFEC4899); // Pink
+        return const Color(0xFFEC4899);
       case 'learning':
-        return const Color(0xFF8B5CF6); // Purple
+        return const Color(0xFF8B5CF6);
       default:
         return const Color(0xFF64748B);
     }
@@ -305,25 +291,19 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         title: const Text('روال روزانه و اسپرینت‌ها'),
         backgroundColor: const Color(0xFF1E293B),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add_task),
-            tooltip: 'افزودن تسک جدید',
-            onPressed: _addNewTaskDialog,
-          ),
           PopupMenuButton<int>(
             icon: const Icon(Icons.more_time),
-            tooltip: 'شیفت زمانی کل برنامه',
+            tooltip: 'شیفت زمانی',
             onSelected: _shiftSchedule,
             itemBuilder: (ctx) => [
-              const PopupMenuItem(value: 15, child: Text('+۱۵ دقیقه شیفت جلو')),
-              const PopupMenuItem(value: 30, child: Text('+۳۰ دقیقه شیفت جلو')),
+              const PopupMenuItem(value: 15, child: Text('+۱۵ دقیقه شیفت')),
+              const PopupMenuItem(value: 30, child: Text('+۳۰ دقیقه شیفت')),
             ],
           ),
         ],
       ),
       body: Column(
         children: [
-          // بخش ردیاب ریپلای‌های توییتر
           Container(
             padding: const EdgeInsets.all(16),
             color: const Color(0xFF1E293B),
@@ -335,7 +315,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   target: shegtoryTarget,
                   color: const Color(0xFF6366F1),
                   onIncrement: (val) {
-                    setState(() => shegtoryCount = (shegtoryCount + val).clamp(0, shegtoryTarget + 50));
+                    setState(() => shegtoryCount = (shegtoryCount + val).clamp(0, 200));
                     _saveData();
                   },
                 ),
@@ -346,15 +326,13 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   target: blinkTarget,
                   color: const Color(0xFF06B6D4),
                   onIncrement: (val) {
-                    setState(() => blinkCount = (blinkCount + val).clamp(0, blinkTarget + 50));
+                    setState(() => blinkCount = (blinkCount + val).clamp(0, 150));
                     _saveData();
                   },
                 ),
               ],
             ),
           ),
-
-          // لیست تسک‌ها با قابلیت ویرایش
           Expanded(
             child: ListView.builder(
               itemCount: tasks.length,
@@ -363,20 +341,20 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 final color = _getCategoryColor(task.category);
 
                 return Opacity(
-                  opacity: task.isEnabled ? 1.0 : 0.4,
+                  opacity: task.isEnabled ? 1.0 : 0.35,
                   child: Card(
-                    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                     color: const Color(0xFF1E293B),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: color.withOpacity(0.4), width: 1.5),
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(color: color.withOpacity(0.4), width: 1.2),
                     ),
                     child: ListTile(
                       leading: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: color.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
                           task.startTime,
@@ -396,7 +374,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                         style: const TextStyle(color: Colors.white54, fontSize: 12),
                       ),
                       trailing: IconButton(
-                        icon: const Icon(Icons.edit, color: Colors.white70, size: 20),
+                        icon: const Icon(Icons.edit, color: Colors.white70, size: 18),
                         onPressed: () => _editTaskDialog(task),
                       ),
                     ),
@@ -418,7 +396,6 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     required Function(int) onIncrement,
   }) {
     final progress = (count / target).clamp(0.0, 1.0);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -430,7 +407,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           ],
         ),
         const SizedBox(height: 6),
-        LinearProgressIndicator(value: progress, backgroundColor: Colors.white12, color: color, minHeight: 7),
+        LinearProgressIndicator(value: progress, backgroundColor: Colors.white12, color: color, minHeight: 6),
         const SizedBox(height: 6),
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
@@ -448,14 +425,335 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   Widget _tinyBtn(String label, VoidCallback onTap) {
     return SizedBox(
-      height: 28,
+      height: 26,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           backgroundColor: const Color(0xFF334155),
         ),
         onPressed: onTap,
-        child: Text(label, style: const TextStyle(fontSize: 12, color: Colors.white)),
+        child: Text(label, style: const TextStyle(fontSize: 11, color: Colors.white)),
+      ),
+    );
+  }
+}
+
+// ==================== بخش دوم: کاوشگر دوره‌های رایگان با Gemini API ====================
+class CourseModel {
+  final String title;
+  final String provider;
+  final String platform;
+  final String certificateStatus;
+  final String description;
+
+  CourseModel({
+    required this.title,
+    required this.provider,
+    required this.platform,
+    required this.certificateStatus,
+    required this.description,
+  });
+
+  factory CourseModel.fromJson(Map<String, dynamic> json) => CourseModel(
+        title: json['title'] ?? 'عنوان دوره',
+        provider: json['provider'] ?? 'دانشگاه / کمپانی',
+        platform: json['platform'] ?? 'پلتفرم',
+        certificateStatus: json['certificateStatus'] ?? 'رایگان',
+        description: json['description'] ?? '',
+      );
+}
+
+class CourseFinderScreen extends StatefulWidget {
+  const CourseFinderScreen({super.key});
+
+  @override
+  State<CourseFinderScreen> createState() => _CourseFinderScreenState();
+}
+
+class _CourseFinderScreenState extends State<CourseFinderScreen> {
+  String apiKey = '';
+  bool isLoading = false;
+  List<CourseModel> courses = [];
+  String selectedTopic = 'AI Agents & Multi-Agent';
+
+  final List<String> topics = [
+    'AI Agents & Multi-Agent',
+    'Vibecoding & Code Generation',
+    'LangChain & CrewAI Practical',
+    'LLM Fine-tuning & Hugging Face',
+    'Prompt Engineering for Devs',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadApiKey();
+  }
+
+  Future<void> _loadApiKey() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      apiKey = prefs.getString('geminiApiKey') ?? '';
+    });
+  }
+
+  Future<void> _saveApiKey(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('geminiApiKey', key);
+    setState(() {
+      apiKey = key;
+    });
+  }
+
+  void _showApiKeyDialog() {
+    final controller = TextEditingController(text: apiKey);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text('تنظیم Gemini API Key', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'کلید رایگان خود را از aistudio.google.com دریافت و اینجا وارد کنید:',
+              style: TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: controller,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: 'AIzaSy...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
+          ElevatedButton(
+            onPressed: () {
+              _saveApiKey(controller.text.trim());
+              Navigator.pop(ctx);
+            },
+            child: const Text('ذخیره'),
+          )
+        ],
+      ),
+    );
+  }
+
+  Future<void> _fetchCoursesWithGemini() async {
+    if (apiKey.isEmpty) {
+      _showApiKeyDialog();
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+      courses = [];
+    });
+
+    final prompt = '''
+You are an expert AI Education Curator.
+Find 5 strictly top-tier FREE courses or courses with high-value certificates (from Hugging Face, DeepLearning.AI, Coursera with financial-aid/audit, Google Cloud, Stanford Online, Kaggle) on the topic: "$selectedTopic".
+
+You MUST return ONLY a valid JSON array of objects (no markdown, no backticks, no extra text).
+Each object must have these exact keys:
+"title": Course name in English
+"provider": University or Institution (e.g., Hugging Face, Stanford, Google, Andrew Ng)
+"platform": Platform name (e.g., Coursera, Kaggle, edX, HuggingFace Learn)
+"certificateStatus": (e.g., "Free Certificate", "Certificate with Financial Aid", "Free Badge for LinkedIn")
+"description": A concise Persian (Farsi) explanation of why this course is essential and what skills it covers (2 sentences).
+''';
+
+    try {
+      final url = Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey');
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'contents': [
+            {
+              'parts': [
+                {'text': prompt}
+              ]
+            }
+          ]
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        String rawText = data['candidates'][0]['content']['parts'][0]['text'];
+        rawText = rawText.replaceAll('```json', '').replaceAll('```', '').trim();
+
+        final List parsedList = jsonDecode(rawText);
+        setState(() {
+          courses = parsedList.map((item) => CourseModel.fromJson(item)).toList();
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطا در ارتباط با جمنای: کد ${response.statusCode}')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('خطا: $e')),
+      );
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('کاوشگر دوره‌های رایگان AI'),
+        backgroundColor: const Color(0xFF1E293B),
+        actions: [
+          IconButton(
+            icon: Icon(apiKey.isEmpty ? Icons.key_off : Icons.vpn_key,
+                color: apiKey.isEmpty ? Colors.amber : Colors.greenAccent),
+            tooltip: 'تنظیم API Key جمنای',
+            onPressed: _showApiKeyDialog,
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            color: const Color(0xFF1E293B),
+            child: Column(
+              children: [
+                DropdownButtonFormField<String>(
+                  value: selectedTopic,
+                  dropdownColor: const Color(0xFF1E293B),
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: const InputDecoration(
+                    labelText: 'موضوع تخصصی جهت کاوش',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  items: topics
+                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                      .toList(),
+                  onChanged: (val) => setState(() => selectedTopic = val!),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF38BDF8),
+                      foregroundColor: const Color(0xFF0F172A),
+                    ),
+                    onPressed: isLoading ? null : _fetchCoursesWithGemini,
+                    icon: isLoading
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.auto_awesome),
+                    label: Text(
+                      isLoading ? 'در حال جستجو و اعتبارسنجی با Gemini...' : 'یافتن دوره‌های معتبر و رایگان',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: courses.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Text(
+                        apiKey.isEmpty
+                            ? 'ابتدا از آیکون کلید بالا، Gemini API Key خود را وارد کنید.'
+                            : 'موضوع را انتخاب کرده و دکمه جستجو با هوش مصنوعی را بزنید.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white54),
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: courses.length,
+                    itemBuilder: (ctx, idx) {
+                      final c = courses[idx];
+                      return Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        color: const Color(0xFF1E293B),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(color: Color(0xFF38BDF8), width: 0.8),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(14.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      c.title,
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      c.certificateStatus,
+                                      style: const TextStyle(color: Colors.greenAccent, fontSize: 11),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Text(
+                                    'ارائه‌دهنده: ${c.provider}',
+                                    style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 12),
+                                  ),
+                                  const Spacer(),
+                                  Text(
+                                    'پلتفرم: ${c.platform}',
+                                    style: const TextStyle(color: Colors.white60, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                              const Divider(color: Colors.white12, height: 16),
+                              Text(
+                                c.description,
+                                style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }
