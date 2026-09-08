@@ -40,7 +40,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
   final List<Widget> _screens = [
     const ScheduleScreen(),
-    const AiNewsScreen(), // تب اختصاصی اخبار و ساخت توییت Shegtory
+    const AiNewsScreen(),
     const HackathonRadarScreen(),
     const AiVocabularyScreen(),
     const CourseFinderScreen(),
@@ -420,7 +420,7 @@ class _AiNewsScreenState extends State<AiNewsScreen> {
 
     if (apiKey.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('لطفاً ابتدا Gemini API Key را در تب دوره‌ها وارد کنید.')),
+        const SnackBar(content: Text('⚠️ ابتدا Gemini API Key را در تب دوره‌ها ذخیره کنید.')),
       );
       return;
     }
@@ -429,15 +429,15 @@ class _AiNewsScreenState extends State<AiNewsScreen> {
 
     final prompt = '''
 You are a top-tier tech journalist and AI insider covering AI Agents, LLMs, Vibecoding, and Open Source AI models.
-Give me 5 breakthrough, hot, and trend-worthy AI news items from the current AI landscape (tools, agent frameworks, multi-agent updates, viral code generators).
+Give me 5 breakthrough, hot AI news items from the current AI landscape.
 
 Return ONLY a valid JSON array of objects (no markdown, no backticks):
 [
   {
     "title": "Short catchy news headline in English",
-    "source": "e.g. HuggingFace / Anthropic / GitHub Trending / LangChain",
+    "source": "HuggingFace / Anthropic / GitHub",
     "category": "AI Agents OR Vibecoding OR Models",
-    "summaryFa": "Two sentences in Persian explaining what happened and why it matters for builders."
+    "summaryFa": "Two sentences in Persian explaining what happened."
   }
 ]
 ''';
@@ -460,9 +460,15 @@ Return ONLY a valid JSON array of objects (no markdown, no backticks):
         setState(() {
           newsList = list.map((item) => AiNewsItem.fromJson(item)).toList();
         });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: Colors.redAccent, content: Text('کد خطای گوگل: ${res.statusCode} (فیلترشکن را بررسی کنید)')),
+        );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطا در دریافت خبر: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(backgroundColor: Colors.redAccent, content: Text('خطای اتصال: $e (فیلترشکن روشن است؟)')),
+      );
     } finally {
       setState(() => isLoading = false);
     }
@@ -475,17 +481,10 @@ Return ONLY a valid JSON array of objects (no markdown, no backticks):
     setState(() => item.isGenerating = true);
 
     final prompt = '''
-You are the ghostwriter for "shegtory", an influential Twitter account known for AI Vibecoding, testing AI agents, and sharing insider dev thoughts.
-Write an engaging, high-viral potential tweet in English based on this news:
-Headline: "${item.title}"
-Context: "${item.summaryFa}"
-
-Rules:
-- Sound like a sharp AI builder / vibecoder (not corporate PR, no cheesy buzzwords).
-- Add an interesting insight or hot take (e.g. how it changes agent workflows or vibecoding).
-- Length: under 260 characters.
-- Include 2-3 clean relevant hashtags (like #AIAgents #Vibecoding #BuildInPublic).
-- Return ONLY the tweet text.
+Write a viral Twitter post for "shegtory" (AI vibecoding expert) based on:
+Headline: "\${item.title}"
+Context: "\${item.summaryFa}"
+Length: under 260 characters, include 2 hashtags. Return ONLY the tweet.
 ''';
 
     try {
@@ -504,8 +503,16 @@ Rules:
         setState(() {
           item.generatedTweet = tweetText;
         });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطای گوگل: ${res.statusCode}')),
+        );
       }
-    } catch (_) {} finally {
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('خطا: $e')),
+      );
+    } finally {
       setState(() => item.isGenerating = false);
     }
   }
@@ -538,7 +545,10 @@ Rules:
           Expanded(
             child: newsList.isEmpty
                 ? const Center(
-                    child: Text('دکمه اسکن را بزنید تا خبرها و ایده‌های توییت آماده شوند.', style: TextStyle(color: Colors.white54)),
+                    child: Padding(
+                      padding: EdgeInsets.all(20.0),
+                      child: Text('فیلترشکن را روشن کنید و دکمه اسکن را بزنید.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white54)),
+                    ),
                   )
                 : ListView.builder(
                     itemCount: newsList.length,
@@ -572,12 +582,14 @@ Rules:
                               const SizedBox(height: 6),
                               Text(item.summaryFa, style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)),
                               const SizedBox(height: 12),
-
-                              // باکس توییت تولید شده
                               if (item.generatedTweet != null) ...[
                                 Container(
                                   padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blueAccent.withOpacity(0.4))),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black38,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.blueAccent.withOpacity(0.4)),
+                                  ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
@@ -590,7 +602,7 @@ Rules:
                                             tooltip: 'کپی متن توییت',
                                             onPressed: () {
                                               Clipboard.setData(ClipboardData(text: item.generatedTweet!));
-                                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('متن توییت در کلیپ‌بورد کپی شد!')));
+                                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('متن توییت کپی شد!')));
                                             },
                                           )
                                         ],
@@ -601,8 +613,6 @@ Rules:
                                 ),
                                 const SizedBox(height: 8),
                               ],
-
-                              // دکمه ساخت توییت
                               Align(
                                 alignment: Alignment.centerLeft,
                                 child: TextButton.icon(
@@ -671,27 +681,21 @@ class _HackathonRadarScreenState extends State<HackathonRadarScreen> {
     final apiKey = prefs.getString('geminiApiKey') ?? '';
 
     if (apiKey.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لطفاً ابتدا Gemini API Key را در تب دوره‌ها وارد کنید.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ ابتدا Gemini API Key را در تب دوره‌ها وارد کنید.')));
       return;
     }
 
     setState(() => isLoading = true);
 
     final prompt = '''
-You are an expert AI Hackathon Scout.
-Find 5 credible, active AI hackathons (from LabLab.ai, Devpost, DoraHacks, Kaggle, Hugging Face) specifically focused on:
-- AI Agents & Autonomous Workflows
-- AI Video Generation / Multimodal AI
-- Vibecoding & Rapid Prototyping
-CRITICAL: There MUST be at least 10 days remaining.
-
-Return ONLY a valid JSON array of objects (no markdown):
+Find 5 credible, active AI hackathons (Lablab.ai, Devpost, DoraHacks) with AT LEAST 10 days remaining.
+Return ONLY valid JSON array (no markdown):
 [
   {
     "title": "Hackathon Name",
     "platform": "Lablab.ai / Devpost",
-    "prize": "Prize pool or Grants",
-    "daysLeft": "Estimated remaining days",
+    "prize": "Prize pool",
+    "daysLeft": "14 Days Left",
     "focusType": "AI Agents / Video",
     "description": "Short explanation in Persian."
   }
@@ -716,8 +720,16 @@ Return ONLY a valid JSON array of objects (no markdown):
         setState(() {
           hackathons = list.map((item) => HackathonModel.fromJson(item)).toList();
         });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: Colors.redAccent, content: Text('کد خطای گوگل: ${res.statusCode} (فیلترشکن را چک کنید)')),
+        );
       }
-    } catch (_) {} finally {
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(backgroundColor: Colors.redAccent, content: Text('خطای اتصال: $e')),
+      );
+    } finally {
       setState(() => isLoading = false);
     }
   }
@@ -744,7 +756,7 @@ Return ONLY a valid JSON array of objects (no markdown):
           ),
           Expanded(
             child: hackathons.isEmpty
-                ? const Center(child: Text('دکمه اسکن را بزنید تا هکاتون‌های جدید بارگذاری شوند.', style: TextStyle(color: Colors.white54)))
+                ? const Center(child: Text('فیلترشکن را روشن کرده و دکمه اسکن را بزنید.', style: TextStyle(color: Colors.white54)))
                 : ListView.builder(
                     itemCount: hackathons.length,
                     itemBuilder: (ctx, idx) {
@@ -1026,9 +1038,18 @@ class _CourseFinderScreenState extends State<CourseFinderScreen> {
         raw = raw.replaceAll('```json', '').replaceAll('```', '').trim();
         final List list = jsonDecode(raw);
         setState(() => courses = list.map((item) => CourseModel.fromJson(item)).toList());
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: Colors.redAccent, content: Text('کد خطای گوگل: ${res.statusCode} (فیلترشکن را بررسی کنید)')),
+        );
       }
-    } catch (_) {}
-    setState(() => isLoading = false);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(backgroundColor: Colors.redAccent, content: Text('خطای اتصال: $e')),
+      );
+    } finally {
+      setState(() => isLoading = false);
+    }
   }
 
   @override
