@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -39,6 +40,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
   final List<Widget> _screens = [
     const ScheduleScreen(),
+    const AiNewsScreen(), // تب اختصاصی اخبار و ساخت توییت Shegtory
     const HackathonRadarScreen(),
     const AiVocabularyScreen(),
     const CourseFinderScreen(),
@@ -57,7 +59,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           NavigationDestination(
             icon: Icon(Icons.schedule, color: Colors.white70),
             selectedIcon: Icon(Icons.schedule, color: Color(0xFF6366F1)),
-            label: 'برنامه و ریپلای',
+            label: 'برنامه',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.bolt, color: Colors.white70),
+            selectedIcon: Icon(Icons.bolt, color: Color(0xFFE11D48)),
+            label: 'اخبار Shegtory',
           ),
           NavigationDestination(
             icon: Icon(Icons.code, color: Colors.white70),
@@ -67,7 +74,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           NavigationDestination(
             icon: Icon(Icons.style, color: Colors.white70),
             selectedIcon: Icon(Icons.style, color: Color(0xFF10B981)),
-            label: 'زبان و اصطلاحات',
+            label: 'زبان و لغات',
           ),
           NavigationDestination(
             icon: Icon(Icons.school_outlined, color: Colors.white70),
@@ -80,7 +87,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 }
 
-// ==================== بخش ۱: برنامه روزانه و ریپلای توییتر ====================
+// ==================== بخش ۱: برنامه روزانه و اسپرینت‌ها ====================
 class TaskItem {
   String id;
   String title;
@@ -139,30 +146,30 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   void _loadDefaultTasks() {
     tasks = [
-      TaskItem(id: '1', title: 'بیداری و آماده‌سازی', startTime: '04:00', durationMinutes: 30, category: 'routine'),
+      TaskItem(id: '1', title: 'بیداری و هوشیاری', startTime: '04:00', durationMinutes: 30, category: 'routine'),
       TaskItem(id: '2', title: 'اسپرینت ۱: ریپلای Shegtory (۲۰ عدد)', startTime: '04:30', durationMinutes: 20, category: 'sprint-shegtory'),
       TaskItem(id: '3', title: 'ورزش و دوش صبحگاهی', startTime: '05:00', durationMinutes: 90, category: 'workout'),
       TaskItem(id: '4', title: 'اسپرینت ۱: ریپلای Blink (۱۵ عدد GM)', startTime: '06:30', durationMinutes: 20, category: 'sprint-blink'),
-      TaskItem(id: '5', title: 'صبحانه کامل و ریکاوری', startTime: '06:50', durationMinutes: 60, category: 'meal'),
+      TaskItem(id: '5', title: 'صبحانه کامل و شارژ انرژی', startTime: '06:50', durationMinutes: 60, category: 'meal'),
       TaskItem(id: '6', title: 'اسپرینت ۲: ریپلای Shegtory (۲۰ عدد)', startTime: '07:50', durationMinutes: 20, category: 'sprint-shegtory'),
-      TaskItem(id: '7', title: 'تمرکز عمیق: هکاتون / ایجنت‌سازی', startTime: '08:10', durationMinutes: 170, category: 'deepwork'),
+      TaskItem(id: '7', title: 'تمرکز عمیق: هکاتون / توسعه ایجنت', startTime: '08:10', durationMinutes: 170, category: 'deepwork'),
       TaskItem(id: '8', title: 'اسپرینت ۲: ریپلای Blink (۱۵ عدد)', startTime: '11:00', durationMinutes: 20, category: 'sprint-blink'),
       TaskItem(id: '9', title: 'ادیت ویدیوی تست ایجنت Shegtory', startTime: '11:20', durationMinutes: 60, category: 'content'),
       TaskItem(id: '10', title: 'اسپرینت ۳: ریپلای Shegtory (۲۰ عدد)', startTime: '12:20', durationMinutes: 20, category: 'sprint-shegtory'),
-      TaskItem(id: '11', title: 'فلش‌کارت و زبان تخصصی AI', startTime: '12:40', durationMinutes: 30, category: 'learning'),
+      TaskItem(id: '11', title: 'فلش‌کارت و یادگیری اصطلاحات AI', startTime: '12:40', durationMinutes: 30, category: 'learning'),
       TaskItem(id: '12', title: 'دوره معتبر با مدرک', startTime: '13:10', durationMinutes: 60, category: 'learning'),
       TaskItem(id: '13', title: 'اسپرینت ۳: ریپلای Blink (۱۵ عدد)', startTime: '14:10', durationMinutes: 20, category: 'sprint-blink'),
-      TaskItem(id: '14', title: 'استراتژی امبسدوری Blink', startTime: '14:30', durationMinutes: 60, category: 'content'),
+      TaskItem(id: '14', title: 'استراتژی امبسدوری اکانت Blink', startTime: '14:30', durationMinutes: 60, category: 'content'),
       TaskItem(id: '15', title: 'اسپرینت ۴: ریپلای Shegtory (۲۰ عدد)', startTime: '15:30', durationMinutes: 20, category: 'sprint-shegtory'),
-      TaskItem(id: '16', title: 'تمرکز عمیق ۲: توسعه فنی هکاتون', startTime: '15:50', durationMinutes: 150, category: 'deepwork'),
+      TaskItem(id: '16', title: 'تمرکز عمیق ۲: ادامه کارهای هکاتون', startTime: '15:50', durationMinutes: 150, category: 'deepwork'),
       TaskItem(id: '17', title: 'اسپرینت ۴: ریپلای Blink (۱۵ عدد)', startTime: '18:20', durationMinutes: 20, category: 'sprint-blink'),
-      TaskItem(id: '18', title: 'استراحت و پیاده‌روی آزاد', startTime: '18:40', durationMinutes: 50, category: 'routine'),
+      TaskItem(id: '18', title: 'استراحت آزاد دور از مانیتور', startTime: '18:40', durationMinutes: 50, category: 'routine'),
       TaskItem(id: '19', title: 'اسپرینت ۵: ریپلای Shegtory (۲۰ عدد)', startTime: '19:30', durationMinutes: 20, category: 'sprint-shegtory'),
-      TaskItem(id: '20', title: 'کارهای سبک و تست پرامپت', startTime: '19:50', durationMinutes: 70, category: 'routine'),
-      TaskItem(id: '21', title: 'شام و آرامش ذهنی', startTime: '21:00', durationMinutes: 60, category: 'meal'),
+      TaskItem(id: '20', title: 'کارهای سبک و تست پرامپت‌ها', startTime: '19:50', durationMinutes: 70, category: 'routine'),
+      TaskItem(id: '21', title: 'شام و آرامش ذهن', startTime: '21:00', durationMinutes: 60, category: 'meal'),
       TaskItem(id: '22', title: 'اسپرینت ۵: ریپلای Blink (۱۵ عدد)', startTime: '22:00', durationMinutes: 20, category: 'sprint-blink'),
       TaskItem(id: '23', title: 'اسپرینت ۶: ریپلای Shegtory (۲۰ عدد)', startTime: '22:20', durationMinutes: 20, category: 'sprint-shegtory'),
-      TaskItem(id: '24', title: 'اسپرینت ۶: ریپلای Blink (۱۵ عدد)', startTime: '22:40', durationMinutes: 20, category: 'sprint-blink'),
+      TaskItem(id: '24', title: 'اسپرینت ۶: ریپلای Blink (۱۵ عدد GN)', startTime: '22:40', durationMinutes: 20, category: 'sprint-blink'),
       TaskItem(id: '25', title: 'جمع‌بندی و خواب', startTime: '23:00', durationMinutes: 30, category: 'routine'),
     ];
   }
@@ -199,7 +206,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1E293B),
-        title: const Text('ویرایش و شخصی‌سازی تسک', style: TextStyle(color: Colors.white)),
+        title: const Text('ویرایش و تعویض تسک', style: TextStyle(color: Colors.white)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -207,20 +214,20 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               TextField(
                 controller: titleController,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: 'عنوان تسک (مثلاً هکاتون یا پروژه کلاینت)'),
+                decoration: const InputDecoration(labelText: 'عنوان تسک (مثلاً پروژه دلخواه)'),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               TextField(
                 controller: timeController,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(labelText: 'ساعت شروع (HH:mm)'),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               TextField(
                 controller: durationController,
                 keyboardType: TextInputType.number,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: 'مدت (دقیقه)'),
+                decoration: const InputDecoration(labelText: 'مدت‌زمان (دقیقه)'),
               ),
             ],
           ),
@@ -275,13 +282,13 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('برنامه روزانه و اسپرینت‌ها'),
+        title: const Text('برنامه و اسپرینت‌ها'),
         backgroundColor: const Color(0xFF1E293B),
       ),
       body: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(12),
             color: const Color(0xFF1E293B),
             child: Column(
               children: [
@@ -289,7 +296,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   setState(() => shegtoryCount = (shegtoryCount + v).clamp(0, 200));
                   _saveData();
                 }),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 _buildCounterRow('Blink (سبک و GM)', blinkCount, blinkTarget, const Color(0xFF06B6D4), (v) {
                   setState(() => blinkCount = (blinkCount + v).clamp(0, 150));
                   _saveData();
@@ -371,13 +378,262 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 }
 
-// ==================== بخش ۲: رادار هکاتون‌های هوش مصنوعی (حداقل ۱۰ روز مانده) ====================
+// ==================== بخش ۲: اخبار AI و ژنراتور توییت Shegtory ====================
+class AiNewsItem {
+  final String title;
+  final String source;
+  final String summaryFa;
+  final String category;
+  String? generatedTweet;
+  bool isGenerating = false;
+
+  AiNewsItem({
+    required this.title,
+    required this.source,
+    required this.summaryFa,
+    required this.category,
+    this.generatedTweet,
+  });
+
+  factory AiNewsItem.fromJson(Map<String, dynamic> json) => AiNewsItem(
+        title: json['title'] ?? '',
+        source: json['source'] ?? 'AI Ecosystem',
+        summaryFa: json['summaryFa'] ?? '',
+        category: json['category'] ?? 'Agents / Vibecoding',
+      );
+}
+
+class AiNewsScreen extends StatefulWidget {
+  const AiNewsScreen({super.key});
+
+  @override
+  State<AiNewsScreen> createState() => _AiNewsScreenState();
+}
+
+class _AiNewsScreenState extends State<AiNewsScreen> {
+  bool isLoading = false;
+  List<AiNewsItem> newsList = [];
+
+  Future<void> _fetchAiNews() async {
+    final prefs = await SharedPreferences.getInstance();
+    final apiKey = prefs.getString('geminiApiKey') ?? '';
+
+    if (apiKey.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لطفاً ابتدا Gemini API Key را در تب دوره‌ها وارد کنید.')),
+      );
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    final prompt = '''
+You are a top-tier tech journalist and AI insider covering AI Agents, LLMs, Vibecoding, and Open Source AI models.
+Give me 5 breakthrough, hot, and trend-worthy AI news items from the current AI landscape (tools, agent frameworks, multi-agent updates, viral code generators).
+
+Return ONLY a valid JSON array of objects (no markdown, no backticks):
+[
+  {
+    "title": "Short catchy news headline in English",
+    "source": "e.g. HuggingFace / Anthropic / GitHub Trending / LangChain",
+    "category": "AI Agents OR Vibecoding OR Models",
+    "summaryFa": "Two sentences in Persian explaining what happened and why it matters for builders."
+  }
+]
+''';
+
+    try {
+      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey');
+      final res = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'contents': [{'parts': [{'text': prompt}]}]
+        }),
+      );
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        String raw = data['candidates'][0]['content']['parts'][0]['text'];
+        raw = raw.replaceAll('```json', '').replaceAll('```', '').trim();
+        final List list = jsonDecode(raw);
+        setState(() {
+          newsList = list.map((item) => AiNewsItem.fromJson(item)).toList();
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطا در دریافت خبر: $e')));
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _generateTweet(AiNewsItem item) async {
+    final prefs = await SharedPreferences.getInstance();
+    final apiKey = prefs.getString('geminiApiKey') ?? '';
+
+    setState(() => item.isGenerating = true);
+
+    final prompt = '''
+You are the ghostwriter for "shegtory", an influential Twitter account known for AI Vibecoding, testing AI agents, and sharing insider dev thoughts.
+Write an engaging, high-viral potential tweet in English based on this news:
+Headline: "${item.title}"
+Context: "${item.summaryFa}"
+
+Rules:
+- Sound like a sharp AI builder / vibecoder (not corporate PR, no cheesy buzzwords).
+- Add an interesting insight or hot take (e.g. how it changes agent workflows or vibecoding).
+- Length: under 260 characters.
+- Include 2-3 clean relevant hashtags (like #AIAgents #Vibecoding #BuildInPublic).
+- Return ONLY the tweet text.
+''';
+
+    try {
+      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey');
+      final res = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'contents': [{'parts': [{'text': prompt}]}]
+        }),
+      );
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final tweetText = data['candidates'][0]['content']['parts'][0]['text'].toString().trim();
+        setState(() {
+          item.generatedTweet = tweetText;
+        });
+      }
+    } catch (_) {} finally {
+      setState(() => item.isGenerating = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('اخبار AI و توییت‌ساز Shegtory'),
+        backgroundColor: const Color(0xFF1E293B),
+      ),
+      body: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            color: const Color(0xFF1E293B),
+            child: SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE11D48), foregroundColor: Colors.white),
+                onPressed: isLoading ? null : _fetchAiNews,
+                icon: isLoading
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.bolt),
+                label: Text(isLoading ? 'در حال پایش ترندها...' : 'اسکن اخبار و ترندهای داغ AI'),
+              ),
+            ),
+          ),
+          Expanded(
+            child: newsList.isEmpty
+                ? const Center(
+                    child: Text('دکمه اسکن را بزنید تا خبرها و ایده‌های توییت آماده شوند.', style: TextStyle(color: Colors.white54)),
+                  )
+                : ListView.builder(
+                    itemCount: newsList.length,
+                    itemBuilder: (ctx, idx) {
+                      final item = newsList[idx];
+                      return Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        color: const Color(0xFF1E293B),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          side: const BorderSide(color: Color(0xFFE11D48), width: 0.8),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(14.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(color: const Color(0xFFE11D48).withOpacity(0.2), borderRadius: BorderRadius.circular(6)),
+                                    child: Text(item.category, style: const TextStyle(color: Color(0xFFFB7185), fontSize: 11, fontWeight: FontWeight.bold)),
+                                  ),
+                                  const Spacer(),
+                                  Text(item.source, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(item.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                              const SizedBox(height: 6),
+                              Text(item.summaryFa, style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)),
+                              const SizedBox(height: 12),
+
+                              // باکس توییت تولید شده
+                              if (item.generatedTweet != null) ...[
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(8), border: BorderSide(color: Colors.blueAccent.withOpacity(0.4))),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          const Text('توییت آماده Shegtory:', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 11, fontWeight: FontWeight.bold)),
+                                          IconButton(
+                                            icon: const Icon(Icons.copy, size: 16, color: Colors.white70),
+                                            tooltip: 'کپی متن توییت',
+                                            onPressed: () {
+                                              Clipboard.setData(ClipboardData(text: item.generatedTweet!));
+                                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('متن توییت در کلیپ‌بورد کپی شد!')));
+                                            },
+                                          )
+                                        ],
+                                      ),
+                                      Text(item.generatedTweet!, style: const TextStyle(color: Colors.white, fontSize: 12, height: 1.3)),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+
+                              // دکمه ساخت توییت
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton.icon(
+                                  style: TextButton.styleFrom(foregroundColor: const Color(0xFF38BDF8)),
+                                  onPressed: item.isGenerating ? null : () => _generateTweet(item),
+                                  icon: item.isGenerating
+                                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                                      : const Icon(Icons.auto_awesome, size: 16),
+                                  label: Text(item.generatedTweet == null ? 'تولید توییت با Gemini' : 'تولید توییت جایگزین'),
+                                ),
+                              )
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== بخش ۳: رادار هکاتون‌های AI ====================
 class HackathonModel {
   final String title;
   final String platform;
   final String prize;
   final String daysLeft;
-  final String focusType; // AI Agent, AI Video, Vibecoding
+  final String focusType;
   final String description;
 
   HackathonModel({
@@ -415,9 +671,7 @@ class _HackathonRadarScreenState extends State<HackathonRadarScreen> {
     final apiKey = prefs.getString('geminiApiKey') ?? '';
 
     if (apiKey.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('لطفاً ابتدا API Key جمنای را در تب دوره‌ها وارد کنید.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لطفاً ابتدا Gemini API Key را در تب دوره‌ها وارد کنید.')));
       return;
     }
 
@@ -429,17 +683,17 @@ Find 5 credible, active AI hackathons (from LabLab.ai, Devpost, DoraHacks, Kaggl
 - AI Agents & Autonomous Workflows
 - AI Video Generation / Multimodal AI
 - Vibecoding & Rapid Prototyping
-CRITICAL REQUIREMENT: There MUST be at least 10 days remaining to build and submit the project.
+CRITICAL: There MUST be at least 10 days remaining.
 
-Return ONLY a valid JSON array of objects (no markdown, no backticks):
+Return ONLY a valid JSON array of objects (no markdown):
 [
   {
     "title": "Hackathon Name",
-    "platform": "e.g. Lablab.ai / Devpost",
-    "prize": "Prize pool or Grants (e.g. \$20,000 + Cloud Credits)",
-    "daysLeft": "Estimated remaining days (e.g. 14 Days Left)",
-    "focusType": "AI Agents or AI Video",
-    "description": "Short explanation in Persian: Why this is perfect to build with AI in under 10 days."
+    "platform": "Lablab.ai / Devpost",
+    "prize": "Prize pool or Grants",
+    "daysLeft": "Estimated remaining days",
+    "focusType": "AI Agents / Video",
+    "description": "Short explanation in Persian."
   }
 ]
 ''';
@@ -462,12 +716,8 @@ Return ONLY a valid JSON array of objects (no markdown, no backticks):
         setState(() {
           hackathons = list.map((item) => HackathonModel.fromJson(item)).toList();
         });
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطا: ${res.statusCode}')));
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطا: $e')));
-    } finally {
+    } catch (_) {} finally {
       setState(() => isLoading = false);
     }
   }
@@ -475,10 +725,7 @@ Return ONLY a valid JSON array of objects (no markdown, no backticks):
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('رادار هکاتون‌های AI (حداقل ۱۰ روز مهلت)'),
-        backgroundColor: const Color(0xFF1E293B),
-      ),
+      appBar: AppBar(title: const Text('رادار هکاتون‌های AI (۱۰+ روز)'), backgroundColor: const Color(0xFF1E293B)),
       body: Column(
         children: [
           Container(
@@ -491,15 +738,13 @@ Return ONLY a valid JSON array of objects (no markdown, no backticks):
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B), foregroundColor: Colors.black),
                 onPressed: isLoading ? null : _fetchHackathons,
                 icon: isLoading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black)) : const Icon(Icons.radar),
-                label: Text(isLoading ? 'در حال کاوش هکاتون‌های معتبر...' : 'اسکن و دریافت هکاتون‌های جدید'),
+                label: Text(isLoading ? 'در حال کاوش...' : 'اسکن و دریافت هکاتون‌ها'),
               ),
             ),
           ),
           Expanded(
             child: hackathons.isEmpty
-                ? const Center(
-                    child: Text('برای یافتن جدیدترین هکاتون‌های ایجنت و ویدیو، دکمه اسکن را بزنید.', style: TextStyle(color: Colors.white54)),
-                  )
+                ? const Center(child: Text('دکمه اسکن را بزنید تا هکاتون‌های جدید بارگذاری شوند.', style: TextStyle(color: Colors.white54)))
                 : ListView.builder(
                     itemCount: hackathons.length,
                     itemBuilder: (ctx, idx) {
@@ -507,35 +752,9 @@ Return ONLY a valid JSON array of objects (no markdown, no backticks):
                       return Card(
                         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         color: const Color(0xFF1E293B),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: Color(0xFFF59E0B), width: 0.8)),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(child: Text(h.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15))),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(color: Colors.amber.withOpacity(0.2), borderRadius: BorderRadius.circular(6)),
-                                    child: Text(h.daysLeft, style: const TextStyle(color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.bold)),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  Text(h.platform, style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 12)),
-                                  const Spacer(),
-                                  Text(h.prize, style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                              const Divider(color: Colors.white12, height: 16),
-                              Text(h.description, style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)),
-                            ],
-                          ),
+                        child: ListTile(
+                          title: Text(h.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          subtitle: Text('${h.platform} • ${h.daysLeft}\n${h.prize}\n${h.description}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
                         ),
                       );
                     },
@@ -547,12 +766,12 @@ Return ONLY a valid JSON array of objects (no markdown, no backticks):
   }
 }
 
-// ==================== بخش ۳: فلش‌کارت زبان تخصصی با حافظه و ELI5 ====================
+// ==================== بخش ۴: فلش‌کارت زبان تخصصی با ELI5 ====================
 class VocabItem {
   final String term;
-  final String level; // Basic, Intermediate, Advanced
+  final String level;
   final String translation;
-  final String eli5; // Explain Like I'm 5 (توضیح ساده)
+  final String eli5;
 
   VocabItem({required this.term, required this.level, required this.translation, required this.eli5});
 }
@@ -565,75 +784,22 @@ class AiVocabularyScreen extends StatefulWidget {
 }
 
 class _AiVocabularyScreenState extends State<AiVocabularyScreen> {
-  final int maxDailyNewLearned = 5; // سقف معقول لغات جدید در روز برای جلوگیری از خستگی ذهنی
+  final int maxDailyNewLearned = 5;
   int todayLearnedCount = 0;
   List<String> knownWords = [];
   List<String> learningWords = [];
   int currentIndex = 0;
   bool showEli5 = false;
 
-  // بانک جامع و تدریجی از صفر و بیسیک تا فوق پیشرفته
   final List<VocabItem> allVocab = [
-    VocabItem(
-      term: 'Token',
-      level: 'Basic',
-      translation: 'توکن (واحد خرد متن برای مدل)',
-      eli5: 'مغز هوش مصنوعی متن را کلمه‌به‌کلمه نمی‌خواند، بلکه آن را به لقمه‌های کوچک‌تر به نام توکن خرد می‌کند (تقریباً هر ۴ حرف یا یک کلمه انگلیسی یک توکن است).',
-    ),
-    VocabItem(
-      term: 'Prompt',
-      level: 'Basic',
-      translation: 'پرامپت (دستور ورودی)',
-      eli5: 'همان سوال یا دستوری است که در چت‌باکس می‌نویسی تا هوش مصنوعی بر اساس آن شروع به فکر کردن و جواب دادن کند.',
-    ),
-    VocabItem(
-      term: 'Context Window',
-      level: 'Basic',
-      translation: 'پنجره بافت یا حافظه کاری',
-      eli5: 'حافظه کوتاه‌مدت مدل است! یعنی در یک گفتگو چقدر متن و پیام قبلی را می‌تواند همزمان در مغزش نگه دارد بدون اینکه آن‌ها را فراموش کند.',
-    ),
-    VocabItem(
-      term: 'Hallucination',
-      level: 'Basic',
-      translation: 'توهم زدن مدل',
-      eli5: 'وقتی هوش مصنوعی جوابی را نمی‌داند ولی با اعتمادبه‌نفس بالا یک دروغ شاخ‌دار سرهم می‌کند و تحویلت می‌دهد!',
-    ),
-    VocabItem(
-      term: 'AI Agent',
-      level: 'Intermediate',
-      translation: 'عامل خودمختار هوش مصنوعی',
-      eli5: 'یک هوش مصنوعی معمولی فقط حرف می‌زند، اما یک Agent مثل یک کارمند است: خودش هدف را می‌گیرد، تصمیم می‌گیرد، در وب سرچ می‌کند، کد می‌زند و کار را کامل تحویل می‌دهد.',
-    ),
-    VocabItem(
-      term: 'Vibecoding',
-      level: 'Intermediate',
-      translation: 'برنامه‌نویسی با حس‌وحال و هوش مصنوعی',
-      eli5: 'روشی جدید که تو به جای نوشتن خط‌به‌خط سینتکس کد، با جملات انگلیسی با هوش مصنوعی حرف می‌زنی و آن کل معماری و کد برنامه را برایت می‌سازد.',
-    ),
-    VocabItem(
-      term: 'Tool Calling / Function Calling',
-      level: 'Intermediate',
-      translation: 'استفاده از ابزارهای خارجی',
-      eli5: 'وقتی هوش مصنوعی دست و پا پیدا می‌کند! مثلاً به جای اینکه فقط متن بنویسد، دسترسی دارد که ماشین‌حساب باز کند یا وضعیت آب‌وهوا را با API چک کند.',
-    ),
-    VocabItem(
-      term: 'RAG (Retrieval-Augmented Generation)',
-      level: 'Advanced',
-      translation: 'تولید مبتنی بر بازیابی اطلاعات',
-      eli5: 'امتحان با کتاب باز! مدل قبل از اینکه به تو جواب دهد، می‌رود فایل‌های پی‌دی‌اف یا دیتابیس اختصاصی تو را ورق می‌زند و از روی آن جواب دقیق می‌دهد تا توهم نزند.',
-    ),
-    VocabItem(
-      term: 'Deterministic Routing',
-      level: 'Advanced',
-      translation: 'مسیریابی قطعی و بدون خطا در ایجنت‌ها',
-      eli5: 'به جای اینکه همیشه تصمیم‌گیری را به شانس مدل بسپاری، کد شبیه چراغ راهنمایی عمل می‌کند: اگر کاربر A گفت ۱۰۰٪ برو مسیر ۱، اگر B گفت برو مسیر ۲.',
-    ),
-    VocabItem(
-      term: 'Chain of Thought (CoT)',
-      level: 'Advanced',
-      translation: 'زنجیره تفکر مرحله‌به‌مرحله',
-      eli5: 'به جای پریدن سریع به جواب، هوش مصنوعی مرحله‌به‌مرحله با صدای بلند فکر می‌کند تا در مسائل منطقی و کدنویسی پیچیده اشتباه نکند.',
-    ),
+    VocabItem(term: 'Token', level: 'Basic', translation: 'توکن (واحد خرد متن برای مدل)', eli5: 'مغز هوش مصنوعی متن را کلمه‌به‌کلمه نمی‌خواند، بلکه آن را به لقمه‌های کوچک‌تر به نام توکن خرد می‌کند.'),
+    VocabItem(term: 'Prompt', level: 'Basic', translation: 'پرامپت (دستور ورودی)', eli5: 'همان سوال یا دستوری است که می‌نویسی تا هوش مصنوعی بر اساس آن شروع به فکر کردن کند.'),
+    VocabItem(term: 'Context Window', level: 'Basic', translation: 'پنجره بافت یا حافظه کاری', eli5: 'حافظه کوتاه‌مدت مدل است؛ چقدر متن را همزمان می‌تواند در مغزش نگه دارد.'),
+    VocabItem(term: 'Hallucination', level: 'Basic', translation: 'توهم زدن مدل', eli5: 'وقتی هوش مصنوعی جواب را نمی‌داند ولی با اعتمادبه‌نفس یک دروغ سرهم می‌کند!'),
+    VocabItem(term: 'AI Agent', level: 'Intermediate', translation: 'عامل خودمختار AI', eli5: 'مثل یک کارمند: خودش هدف را می‌گیرد، در وب سرچ می‌کند، کد می‌زند و کار را تحویل می‌دهد.'),
+    VocabItem(term: 'Vibecoding', level: 'Intermediate', translation: 'کدنویسی حسی با AI', eli5: 'به جای نوشتن خط‌به‌خط سینتکس، به زبان محاوره‌ای با هوش مصنوعی حرف می‌زنی و آن کل برنامه را می‌سازد.'),
+    VocabItem(term: 'Function Calling', level: 'Intermediate', translation: 'استفاده از ابزارهای خارجی', eli5: 'وقتی هوش مصنوعی دست‌وپادار می‌شود و ماشین‌حساب یا سرچ وب را اجرا می‌کند.'),
+    VocabItem(term: 'Deterministic Routing', level: 'Advanced', translation: 'مسیریابی قطعی ایجنت‌ها', eli5: 'مثل چراغ راهنمایی: به جای شانس مدل، با منطق سخت کدنویسی می‌گوییم چه مسیری برود.'),
   ];
 
   @override
@@ -650,16 +816,13 @@ class _AiVocabularyScreenState extends State<AiVocabularyScreen> {
     setState(() {
       knownWords = prefs.getStringList('known_words') ?? [];
       learningWords = prefs.getStringList('learning_words') ?? [];
-
       if (lastDate == today) {
         todayLearnedCount = prefs.getInt('today_learned_count') ?? 0;
       } else {
-        todayLearnedCount = 0; // روز جدید، ریست شدن سقف کلمات جدید
+        todayLearnedCount = 0;
         prefs.setString('vocab_date', today);
         prefs.setInt('today_learned_count', 0);
       }
-
-      // پیدا کردن اولین کلمه‌ای که کاربر هنوز تعیین تکلیف نکرده
       currentIndex = allVocab.indexWhere((v) => !knownWords.contains(v.term) && !learningWords.contains(v.term));
       if (currentIndex == -1) currentIndex = 0;
     });
@@ -670,8 +833,6 @@ class _AiVocabularyScreenState extends State<AiVocabularyScreen> {
     final current = allVocab[currentIndex];
     knownWords.add(current.term);
     await prefs.setStringList('known_words', knownWords);
-
-    // دکمه بلدم هیچ محدودیتی ندارد؛ سریع کلمه بعدی می‌آید
     setState(() {
       showEli5 = false;
       currentIndex = (currentIndex + 1) % allVocab.length;
@@ -681,19 +842,16 @@ class _AiVocabularyScreenState extends State<AiVocabularyScreen> {
   Future<void> _handleNeedToLearn() async {
     if (todayLearnedCount >= maxDailyNewLearned) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('🎯 سقف یادگیری لغات جدید امروز (۵ لغت) پر شد! برای تثبیت، فردا کلمات جدید را ادامه بده.')),
+        const SnackBar(content: Text('🎯 سقف یادگیری لغات جدید امروز (۵ لغت) پر شد! فردا بقیه را مرور کن.')),
       );
       return;
     }
-
     final prefs = await SharedPreferences.getInstance();
     final current = allVocab[currentIndex];
     learningWords.add(current.term);
     todayLearnedCount++;
-
     await prefs.setStringList('learning_words', learningWords);
     await prefs.setInt('today_learned_count', todayLearnedCount);
-
     setState(() {
       showEli5 = false;
       currentIndex = (currentIndex + 1) % allVocab.length;
@@ -703,102 +861,71 @@ class _AiVocabularyScreenState extends State<AiVocabularyScreen> {
   @override
   Widget build(BuildContext context) {
     final current = allVocab[currentIndex];
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('فلش‌کارت زبان تخصصی AI'),
-        backgroundColor: const Color(0xFF1E293B),
-      ),
+      appBar: AppBar(title: const Text('فلش‌کارت زبان تخصصی AI'), backgroundColor: const Color(0xFF1E293B)),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // نشانگر سقف یادگیری روزانه
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(8)),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('لغات جدید امروز:', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                  Text(
-                    '$todayLearnedCount از $maxDailyNewLearned (سقف ضد خستگی)',
-                    style: TextStyle(color: todayLearnedCount >= maxDailyNewLearned ? Colors.redAccent : Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
+                  Text('$todayLearnedCount از $maxDailyNewLearned', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-
-            // کارت اصلی لغت
+            const SizedBox(height: 16),
             Expanded(
               child: Card(
                 color: const Color(0xFF1E293B),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Color(0xFF10B981), width: 1.2)),
                 child: Padding(
                   padding: const EdgeInsets.all(20.0),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(color: Colors.purple.withOpacity(0.2), borderRadius: BorderRadius.circular(6)),
-                        child: Text(current.level, style: const TextStyle(color: Colors.purpleAccent, fontSize: 12, fontWeight: FontWeight.bold)),
-                      ),
-                      const SizedBox(height: 16),
                       Text(current.term, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 10),
                       Text(current.translation, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 16)),
-                      const SizedBox(height: 24),
-
-                      // دکمه ELI5
+                      const SizedBox(height: 20),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF334155), foregroundColor: Colors.amberAccent),
                         onPressed: () => setState(() => showEli5 = !showEli5),
                         icon: const Icon(Icons.child_care),
-                        label: Text(showEli5 ? 'بستن توضیح ساده' : 'توضیح به زبان ساده (ELI5)'),
+                        label: Text(showEli5 ? 'بستن توضیح ساده' : 'توضیح ساده (ELI5)'),
                       ),
                       if (showEli5) ...[
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(10), border: BorderSide(color: Colors.amber.withOpacity(0.3))),
-                          child: Text(current.eli5, style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
-                        ),
-                      ],
+                        const SizedBox(height: 14),
+                        Text(current.eli5, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
+                      ]
                     ],
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 20),
-
-            // دکمه‌های اقدام
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
-                  child: SizedBox(
-                    height: 48,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
-                      onPressed: _handleKnown,
-                      child: const Text('بلدم (بدون محدودیت بعدی)', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                    ),
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+                    onPressed: _handleKnown,
+                    child: const Text('بلدم', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: SizedBox(
-                    height: 48,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF97316)),
-                      onPressed: todayLearnedCount >= maxDailyNewLearned ? null : _handleNeedToLearn,
-                      child: const Text('یاد می‌گیرم (ثبت جدید)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    ),
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF97316)),
+                    onPressed: todayLearnedCount >= maxDailyNewLearned ? null : _handleNeedToLearn,
+                    child: const Text('یاد می‌گیرم', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
-            ),
+            )
           ],
         ),
       ),
@@ -806,26 +933,18 @@ class _AiVocabularyScreenState extends State<AiVocabularyScreen> {
   }
 }
 
-// ==================== بخش ۴: کاوشگر دوره‌های رایگان ====================
+// ==================== بخش ۵: کاوشگر دوره‌های معتبر و رایگان ====================
 class CourseModel {
   final String title;
   final String provider;
-  final String platform;
   final String certificateStatus;
   final String description;
 
-  CourseModel({
-    required this.title,
-    required this.provider,
-    required this.platform,
-    required this.certificateStatus,
-    required this.description,
-  });
+  CourseModel({required this.title, required this.provider, required this.certificateStatus, required this.description});
 
   factory CourseModel.fromJson(Map<String, dynamic> json) => CourseModel(
         title: json['title'] ?? '',
         provider: json['provider'] ?? '',
-        platform: json['platform'] ?? '',
         certificateStatus: json['certificateStatus'] ?? '',
         description: json['description'] ?? '',
       );
@@ -844,12 +963,7 @@ class _CourseFinderScreenState extends State<CourseFinderScreen> {
   List<CourseModel> courses = [];
   String selectedTopic = 'AI Agents & Multi-Agent';
 
-  final List<String> topics = [
-    'AI Agents & Multi-Agent',
-    'Vibecoding & Code Generation',
-    'LangChain & CrewAI Practical',
-    'LLM Fine-tuning & Hugging Face',
-  ];
+  final List<String> topics = ['AI Agents & Multi-Agent', 'Vibecoding & Code Generation', 'LangChain & CrewAI', 'LLM Fine-tuning'];
 
   @override
   void initState() {
@@ -896,8 +1010,7 @@ class _CourseFinderScreenState extends State<CourseFinderScreen> {
       return;
     }
     setState(() => isLoading = true);
-
-    final prompt = 'Find 5 strictly top-tier FREE courses or courses with high-value certificates on "$selectedTopic". Return ONLY JSON array of objects with keys: title, provider, platform, certificateStatus, description (in Persian). No markdown.';
+    final prompt = 'Find 5 strictly top-tier FREE courses or courses with high-value certificates on "$selectedTopic". Return ONLY JSON array of objects with keys: title, provider, certificateStatus, description (in Persian). No markdown.';
     try {
       final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey');
       final res = await http.post(
@@ -922,7 +1035,7 @@ class _CourseFinderScreenState extends State<CourseFinderScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('کاوشگر دوره‌های رایگان AI'),
+        title: const Text('دوره‌های رایگان AI'),
         backgroundColor: const Color(0xFF1E293B),
         actions: [
           IconButton(
