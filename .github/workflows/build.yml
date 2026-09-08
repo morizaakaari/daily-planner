@@ -22,8 +22,13 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
           channel: 'stable'
+
+      - name: Generate Android Skeleton
+        run: |
+          flutter create . --platforms=android
+          # اضافه کردن دسترسی اینترنت به اندروید برای ارتباط با جمنای
+          sed -i '/<application/i <uses-permission android:name="android.permission.INTERNET"/>' android/app/src/main/AndroidManifest.xml
 
       - name: Install Dependencies
         run: flutter pub get
