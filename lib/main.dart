@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 
 void main() {
   runApp(const RoutineMasterApp());
@@ -87,6 +88,213 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 }
 
+// ==================== موتور ارتباط و تست هوش مصنوعی (GEMINI API) ====================
+class GeminiService {
+  static Future<String> getApiKey() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('geminiApiKey') ?? '';
+  }
+
+  static Future<void> saveApiKey(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('geminiApiKey', key.trim());
+  }
+
+  static Future<String> generate(String prompt) async {
+    final apiKey = await getApiKey();
+    if (apiKey.isEmpty) {
+      throw Exception('کلید API وارد نشده است. از آیکون کلید بالای صفحه استفاده کنید.');
+    }
+
+    // تست ترتیبی مدل‌های معتبر جمنای با پشتیبانی از نسخه 2.0 Flash
+    final models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash'];
+    String lastError = '';
+
+    for (final model in models) {
+      try {
+        final url = Uri.parse(
+            'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey');
+
+        final response = await http
+            .post(
+              url,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'contents': [
+                  {
+                    'parts': [
+                      {'text': prompt}
+                    ]
+                  }
+                ]
+              }),
+            )
+            .timeout(const Duration(seconds: 15));
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final candidates = data['candidates'] as List?;
+          if (candidates != null && candidates.isNotEmpty) {
+            final parts = candidates[0]['content']['parts'] as List?;
+            if (parts != null && parts.isNotEmpty) {
+              return parts[0]['text'] as String;
+            }
+          }
+          throw Exception('پاسخی از هوش مصنوعی دریافت نشد.');
+        } else if (response.statusCode == 404) {
+          lastError = 'مدل $model در دسترس نیست (404)';
+          continue; // مدل بعدی را امتحان کن
+        } else if (response.statusCode == 400 || response.statusCode == 403) {
+          throw Exception('خطای گوگل (${response.statusCode}): کلید نامعتبر است یا موقعیت مکانی تحریم است (فیلترشکن باید روشن باشد).');
+        } else {
+          throw Exception('کد خطای سرور گوگل: ${response.statusCode}');
+        }
+      } on TimeoutException {
+        throw Exception('تایم‌اوت ۱۵ ثانیه‌ای: پاسخی نیامد! لطفاً فیلترشکن را بررسی یا عوض کنید.');
+      } catch (e) {
+        if (e.toString().contains('SocketException')) {
+          throw Exception('عدم اتصال به سرور گوگل. از اتصال اینترنت و فیلترشکن مطمئن شوید.');
+        }
+        rethrow;
+      }
+    }
+
+    throw Exception(lastError.isNotEmpty ? lastError : 'خطا در ارتباط با سرور جمنای');
+  }
+
+  static String cleanJsonArray(String raw) {
+    final regExp = RegExp(r'\[\s*\{.*\}\s*\]', dotAll: true);
+    final match = regExp.firstMatch(raw);
+    if (match != null) {
+      return match.group(0)!;
+    }
+    return raw.replaceAll('```json', '').replaceAll('```', '').trim();
+  }
+
+  static void showApiKeyDialog(BuildContext context, VoidCallback onSaved) async {
+    final currentKey = await getApiKey();
+    final controller = TextEditingController(text: currentKey);
+    bool isTesting = false;
+    String testResult = '';
+    bool isSuccess = false;
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          title: const Row(
+            children: [
+              Icon(Icons.vpn_key, color: Colors.amberAccent),
+              SizedBox(width: 8),
+              Text('تنظیم و تست Gemini Key', style: TextStyle(color: Colors.white, fontSize: 16)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'کلید رایگان خود را از aistudio.google.com وارد کنید:',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: controller,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: const InputDecoration(
+                    hintText: 'AIzaSy...',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF38BDF8),
+                      side: const BorderSide(color: Color(0xFF38BDF8)),
+                    ),
+                    onPressed: isTesting
+                        ? null
+                        : () async {
+                            final testKey = controller.text.trim();
+                            if (testKey.isEmpty) {
+                              setDialogState(() {
+                                testResult = 'ابتدا کلید را در کادر پیست کنید.';
+                                isSuccess = false;
+                              });
+                              return;
+                            }
+                            setDialogState(() {
+                              isTesting = true;
+                              testResult = 'در حال تست ارتباط با گوگل...';
+                            });
+
+                            try {
+                              await saveApiKey(testKey);
+                              final res = await generate('Reply: OK');
+                              setDialogState(() {
+                                isTesting = false;
+                                isSuccess = true;
+                                testResult = 'اتصال موفقیت‌آمیز بود! کلید و فیلترشکن بدون مشکل کار می‌کنند ✅ ($res)';
+                              });
+                            } catch (err) {
+                              setDialogState(() {
+                                isTesting = false;
+                                isSuccess = false;
+                                testResult = err.toString().replaceAll('Exception:', '').trim();
+                              });
+                            }
+                          },
+                    icon: isTesting
+                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.network_check, size: 18),
+                    label: const Text('تست اتصال و فیلترشکن'),
+                  ),
+                ),
+                if (testResult.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: isSuccess ? Colors.green.withOpacity(0.15) : Colors.red.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: isSuccess ? Colors.greenAccent : Colors.redAccent),
+                    ),
+                    child: Text(
+                      testResult,
+                      style: TextStyle(
+                        color: isSuccess ? Colors.greenAccent : Colors.redAccent,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
+            ElevatedButton(
+              onPressed: () async {
+                await saveApiKey(controller.text.trim());
+                onSaved();
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: const Text('ذخیره نهایی'),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ==================== بخش ۱: برنامه روزانه و اسپرینت‌ها ====================
 class TaskItem {
   String id;
@@ -137,6 +345,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   int blinkCount = 0;
   final int blinkTarget = 90;
   List<TaskItem> tasks = [];
+  bool hasApiKey = false;
 
   @override
   void initState() {
@@ -176,7 +385,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
+    final key = prefs.getString('geminiApiKey') ?? '';
     setState(() {
+      hasApiKey = key.isNotEmpty;
       shegtoryCount = prefs.getInt('shegtoryCount') ?? 0;
       blinkCount = prefs.getInt('blinkCount') ?? 0;
       final savedTasks = prefs.getString('tasksList');
@@ -284,6 +495,14 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       appBar: AppBar(
         title: const Text('برنامه و اسپرینت‌ها'),
         backgroundColor: const Color(0xFF1E293B),
+        actions: [
+          IconButton(
+            icon: Icon(hasApiKey ? Icons.vpn_key : Icons.key_off,
+                color: hasApiKey ? Colors.greenAccent : Colors.amberAccent),
+            tooltip: 'تنظیم کلید هوش مصنوعی',
+            onPressed: () => GeminiService.showApiKeyDialog(context, _loadData),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -413,18 +632,20 @@ class AiNewsScreen extends StatefulWidget {
 class _AiNewsScreenState extends State<AiNewsScreen> {
   bool isLoading = false;
   List<AiNewsItem> newsList = [];
+  bool hasApiKey = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkKey();
+  }
+
+  Future<void> _checkKey() async {
+    final key = await GeminiService.getApiKey();
+    setState(() => hasApiKey = key.isNotEmpty);
+  }
 
   Future<void> _fetchAiNews() async {
-    final prefs = await SharedPreferences.getInstance();
-    final apiKey = prefs.getString('geminiApiKey') ?? '';
-
-    if (apiKey.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('⚠️ ابتدا Gemini API Key را در تب دوره‌ها ذخیره کنید.')),
-      );
-      return;
-    }
-
     setState(() => isLoading = true);
 
     final prompt = '''
@@ -443,77 +664,50 @@ Return ONLY a valid JSON array of objects (no markdown, no backticks):
 ''';
 
     try {
-      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey');
-      final res = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'contents': [{'parts': [{'text': prompt}]}]
-        }),
-      );
-
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        String raw = data['candidates'][0]['content']['parts'][0]['text'];
-        raw = raw.replaceAll('```json', '').replaceAll('```', '').trim();
-        final List list = jsonDecode(raw);
-        setState(() {
-          newsList = list.map((item) => AiNewsItem.fromJson(item)).toList();
-        });
-      } else {
+      final rawText = await GeminiService.generate(prompt);
+      final cleaned = GeminiService.cleanJsonArray(rawText);
+      final List list = jsonDecode(cleaned);
+      setState(() {
+        newsList = list.map((item) => AiNewsItem.fromJson(item)).toList();
+      });
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: Colors.redAccent, content: Text('کد خطای گوگل: ${res.statusCode} (فیلترشکن را بررسی کنید)')),
+          SnackBar(
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 6),
+            content: Text(e.toString().replaceAll('Exception:', '').trim()),
+          ),
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(backgroundColor: Colors.redAccent, content: Text('خطای اتصال: $e (فیلترشکن روشن است؟)')),
-      );
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
   Future<void> _generateTweet(AiNewsItem item) async {
-    final prefs = await SharedPreferences.getInstance();
-    final apiKey = prefs.getString('geminiApiKey') ?? '';
-
     setState(() => item.isGenerating = true);
 
     final prompt = '''
 Write a viral Twitter post for "shegtory" (AI vibecoding expert) based on:
-Headline: "\${item.title}"
-Context: "\${item.summaryFa}"
+Headline: "${item.title}"
+Context: "${item.summaryFa}"
 Length: under 260 characters, include 2 hashtags. Return ONLY the tweet.
 ''';
 
     try {
-      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey');
-      final res = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'contents': [{'parts': [{'text': prompt}]}]
-        }),
-      );
-
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        final tweetText = data['candidates'][0]['content']['parts'][0]['text'].toString().trim();
-        setState(() {
-          item.generatedTweet = tweetText;
-        });
-      } else {
+      final tweetText = await GeminiService.generate(prompt);
+      setState(() {
+        item.generatedTweet = tweetText.trim();
+      });
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطای گوگل: ${res.statusCode}')),
+          SnackBar(backgroundColor: Colors.redAccent, content: Text(e.toString().replaceAll('Exception:', '').trim())),
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطا: $e')),
-      );
     } finally {
-      setState(() => item.isGenerating = false);
+      if (mounted) setState(() => item.isGenerating = false);
     }
   }
 
@@ -523,6 +717,14 @@ Length: under 260 characters, include 2 hashtags. Return ONLY the tweet.
       appBar: AppBar(
         title: const Text('اخبار AI و توییت‌ساز Shegtory'),
         backgroundColor: const Color(0xFF1E293B),
+        actions: [
+          IconButton(
+            icon: Icon(hasApiKey ? Icons.vpn_key : Icons.key_off,
+                color: hasApiKey ? Colors.greenAccent : Colors.amberAccent),
+            tooltip: 'تنظیم کلید هوش مصنوعی',
+            onPressed: () => GeminiService.showApiKeyDialog(context, _checkKey),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -544,10 +746,16 @@ Length: under 260 characters, include 2 hashtags. Return ONLY the tweet.
           ),
           Expanded(
             child: newsList.isEmpty
-                ? const Center(
+                ? Center(
                     child: Padding(
-                      padding: EdgeInsets.all(20.0),
-                      child: Text('فیلترشکن را روشن کنید و دکمه اسکن را بزنید.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white54)),
+                      padding: const EdgeInsets.all(20.0),
+                      child: Text(
+                        isLoading
+                            ? 'در حال ارتباط با جمنای...'
+                            : 'فیلترشکن را روشن کنید و دکمه اسکن را بزنید.\nاگر کار نکرد، آیکون کلید بالای صفحه را بزنید و دکمه تست را اجرا کنید.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white54, height: 1.5),
+                      ),
                     ),
                   )
                 : ListView.builder(
@@ -675,16 +883,20 @@ class HackathonRadarScreen extends StatefulWidget {
 class _HackathonRadarScreenState extends State<HackathonRadarScreen> {
   bool isLoading = false;
   List<HackathonModel> hackathons = [];
+  bool hasApiKey = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkKey();
+  }
+
+  Future<void> _checkKey() async {
+    final key = await GeminiService.getApiKey();
+    setState(() => hasApiKey = key.isNotEmpty);
+  }
 
   Future<void> _fetchHackathons() async {
-    final prefs = await SharedPreferences.getInstance();
-    final apiKey = prefs.getString('geminiApiKey') ?? '';
-
-    if (apiKey.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ ابتدا Gemini API Key را در تب دوره‌ها وارد کنید.')));
-      return;
-    }
-
     setState(() => isLoading = true);
 
     final prompt = '''
@@ -703,41 +915,42 @@ Return ONLY valid JSON array (no markdown):
 ''';
 
     try {
-      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey');
-      final res = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'contents': [{'parts': [{'text': prompt}]}]
-        }),
-      );
-
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        String raw = data['candidates'][0]['content']['parts'][0]['text'];
-        raw = raw.replaceAll('```json', '').replaceAll('```', '').trim();
-        final List list = jsonDecode(raw);
-        setState(() {
-          hackathons = list.map((item) => HackathonModel.fromJson(item)).toList();
-        });
-      } else {
+      final rawText = await GeminiService.generate(prompt);
+      final cleaned = GeminiService.cleanJsonArray(rawText);
+      final List list = jsonDecode(cleaned);
+      setState(() {
+        hackathons = list.map((item) => HackathonModel.fromJson(item)).toList();
+      });
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: Colors.redAccent, content: Text('کد خطای گوگل: ${res.statusCode} (فیلترشکن را چک کنید)')),
+          SnackBar(
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 6),
+            content: Text(e.toString().replaceAll('Exception:', '').trim()),
+          ),
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(backgroundColor: Colors.redAccent, content: Text('خطای اتصال: $e')),
-      );
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('رادار هکاتون‌های AI (۱۰+ روز)'), backgroundColor: const Color(0xFF1E293B)),
+      appBar: AppBar(
+        title: const Text('رادار هکاتون‌های AI (۱۰+ روز)'),
+        backgroundColor: const Color(0xFF1E293B),
+        actions: [
+          IconButton(
+            icon: Icon(hasApiKey ? Icons.vpn_key : Icons.key_off,
+                color: hasApiKey ? Colors.greenAccent : Colors.amberAccent),
+            tooltip: 'تنظیم کلید هوش مصنوعی',
+            onPressed: () => GeminiService.showApiKeyDialog(context, _checkKey),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Container(
@@ -756,7 +969,12 @@ Return ONLY valid JSON array (no markdown):
           ),
           Expanded(
             child: hackathons.isEmpty
-                ? const Center(child: Text('فیلترشکن را روشن کرده و دکمه اسکن را بزنید.', style: TextStyle(color: Colors.white54)))
+                ? Center(
+                    child: Text(
+                      isLoading ? 'در حال دریافت اطلاعات هکاتون‌ها...' : 'فیلترشکن را روشن کرده و دکمه اسکن را بزنید.',
+                      style: const TextStyle(color: Colors.white54),
+                    ),
+                  )
                 : ListView.builder(
                     itemCount: hackathons.length,
                     itemBuilder: (ctx, idx) {
@@ -970,85 +1188,45 @@ class CourseFinderScreen extends StatefulWidget {
 }
 
 class _CourseFinderScreenState extends State<CourseFinderScreen> {
-  String apiKey = '';
   bool isLoading = false;
   List<CourseModel> courses = [];
   String selectedTopic = 'AI Agents & Multi-Agent';
+  bool hasApiKey = false;
 
   final List<String> topics = ['AI Agents & Multi-Agent', 'Vibecoding & Code Generation', 'LangChain & CrewAI', 'LLM Fine-tuning'];
 
   @override
   void initState() {
     super.initState();
-    _loadApiKey();
+    _checkKey();
   }
 
-  Future<void> _loadApiKey() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() => apiKey = prefs.getString('geminiApiKey') ?? '');
-  }
-
-  Future<void> _saveApiKey(String key) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('geminiApiKey', key);
-    setState(() => apiKey = key);
-  }
-
-  void _showApiKeyDialog() {
-    final controller = TextEditingController(text: apiKey);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        title: const Text('تنظیم Gemini API Key', style: TextStyle(color: Colors.white)),
-        content: TextField(controller: controller, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(hintText: 'AIzaSy...')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
-          ElevatedButton(
-            onPressed: () {
-              _saveApiKey(controller.text.trim());
-              Navigator.pop(ctx);
-            },
-            child: const Text('ذخیره'),
-          )
-        ],
-      ),
-    );
+  Future<void> _checkKey() async {
+    final key = await GeminiService.getApiKey();
+    setState(() => hasApiKey = key.isNotEmpty);
   }
 
   Future<void> _fetchCourses() async {
-    if (apiKey.isEmpty) {
-      _showApiKeyDialog();
-      return;
-    }
     setState(() => isLoading = true);
     final prompt = 'Find 5 strictly top-tier FREE courses or courses with high-value certificates on "$selectedTopic". Return ONLY JSON array of objects with keys: title, provider, certificateStatus, description (in Persian). No markdown.';
+
     try {
-      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey');
-      final res = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'contents': [{'parts': [{'text': prompt}]}]
-        }),
-      );
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        String raw = data['candidates'][0]['content']['parts'][0]['text'];
-        raw = raw.replaceAll('```json', '').replaceAll('```', '').trim();
-        final List list = jsonDecode(raw);
-        setState(() => courses = list.map((item) => CourseModel.fromJson(item)).toList());
-      } else {
+      final rawText = await GeminiService.generate(prompt);
+      final cleaned = GeminiService.cleanJsonArray(rawText);
+      final List list = jsonDecode(cleaned);
+      setState(() => courses = list.map((item) => CourseModel.fromJson(item)).toList());
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: Colors.redAccent, content: Text('کد خطای گوگل: ${res.statusCode} (فیلترشکن را بررسی کنید)')),
+          SnackBar(
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 6),
+            content: Text(e.toString().replaceAll('Exception:', '').trim()),
+          ),
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(backgroundColor: Colors.redAccent, content: Text('خطای اتصال: $e')),
-      );
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
@@ -1060,8 +1238,10 @@ class _CourseFinderScreenState extends State<CourseFinderScreen> {
         backgroundColor: const Color(0xFF1E293B),
         actions: [
           IconButton(
-            icon: Icon(apiKey.isEmpty ? Icons.key_off : Icons.vpn_key, color: apiKey.isEmpty ? Colors.amber : Colors.greenAccent),
-            onPressed: _showApiKeyDialog,
+            icon: Icon(hasApiKey ? Icons.vpn_key : Icons.key_off,
+                color: hasApiKey ? Colors.greenAccent : Colors.amberAccent),
+            tooltip: 'تنظیم کلید هوش مصنوعی',
+            onPressed: () => GeminiService.showApiKeyDialog(context, _checkKey),
           ),
         ],
       ),
@@ -1085,26 +1265,35 @@ class _CourseFinderScreenState extends State<CourseFinderScreen> {
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF38BDF8), foregroundColor: Colors.black),
                   onPressed: isLoading ? null : _fetchCourses,
-                  child: const Text('جستجو'),
+                  child: isLoading
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                      : const Text('جستجو'),
                 ),
               ],
             ),
           ),
           Expanded(
-            child: ListView.builder(
-              itemCount: courses.length,
-              itemBuilder: (ctx, idx) {
-                final c = courses[idx];
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  color: const Color(0xFF1E293B),
-                  child: ListTile(
-                    title: Text(c.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    subtitle: Text('${c.provider} • ${c.certificateStatus}\n${c.description}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            child: courses.isEmpty
+                ? Center(
+                    child: Text(
+                      isLoading ? 'در حال کاوش دوره‌ها از وب...' : 'موضوع را انتخاب کرده و دکمه جستجو را بزنید.',
+                      style: const TextStyle(color: Colors.white54),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: courses.length,
+                    itemBuilder: (ctx, idx) {
+                      final c = courses[idx];
+                      return Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        color: const Color(0xFF1E293B),
+                        child: ListTile(
+                          title: Text(c.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          subtitle: Text('${c.provider} • ${c.certificateStatus}\n${c.description}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
           ),
         ],
       ),
