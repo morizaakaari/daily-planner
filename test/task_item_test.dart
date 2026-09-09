@@ -2,6 +2,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:routine_master_app/main.dart';
 
 void main() {
+  test('Gemini discovery excludes non-text models', () {
+    expect(GeminiService.isTextGenerationModel('models/gemini-2.5-flash-preview-tts'), isFalse);
+    expect(GeminiService.isTextGenerationModel('models/gemini-2.5-flash'), isTrue);
+  });
+
   test('TaskItem keeps the original time across persistence', () {
     final item = TaskItem(
       id: '1',

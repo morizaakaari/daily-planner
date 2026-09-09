@@ -99,6 +99,13 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
   static bool _isInitialized = false;
 
+  static tz.Location get _tehran => tz.getLocation('Asia/Tehran');
+
+  static tz.TZDateTime nowInTehran() => tz.TZDateTime.now(_tehran);
+
+  static String todayInTehran() =>
+      nowInTehran().toIso8601String().substring(0, 10);
+
   static Future<void> init() async {
     if (_isInitialized) return;
     try {
@@ -120,9 +127,9 @@ class NotificationService {
       final android = _notificationsPlugin
           .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       if (android != null) {
-        await android.requestNotificationsPermission();
+        final notificationGranted = await android.requestNotificationsPermission();
         await android.requestExactAlarmsPermission();
-        return true;
+        return notificationGranted ?? true;
       }
     } catch (_) {}
     return false;
@@ -151,13 +158,12 @@ class NotificationService {
     await _notificationsPlugin.show(id, title, body, details);
   }
 
-  // نوتیفیکیشن ساعت ۴ صبح برای شروع روز. به‌جای recurrence مبتنی بر UTC
-  // چند اعلان one-shot می‌سازیم تا ساعت ۴ محلی (حتی اطراف DST) حفظ شود.
+  // اعلان‌ها همیشه بر اساس ساعت ایران هستند؛ منطقه زمانی گوشی اهمیتی ندارد.
   static Future<void> scheduleDailyWakeup() async {
     await init();
-    final now = DateTime.now();
-    var target = DateTime(now.year, now.month, now.day, 4, 0);
-    if (target.isBefore(now)) {
+    final now = nowInTehran();
+    var target = tz.TZDateTime(_tehran, now.year, now.month, now.day, 4);
+    if (!target.isAfter(now)) {
       target = target.add(const Duration(days: 1));
     }
 
@@ -173,8 +179,7 @@ class NotificationService {
     const NotificationDetails details = NotificationDetails(android: androidDetails);
 
     for (var day = 0; day < 30; day++) {
-      final localTarget = target.add(Duration(days: day));
-      final scheduledTz = tz.TZDateTime.from(localTarget.toUtc(), tz.UTC);
+      final scheduledTz = target.add(Duration(days: day));
       try {
         await _notificationsPlugin.zonedSchedule(
           9900 + day,
@@ -217,11 +222,9 @@ class NotificationService {
       return false;
     }
 
-    final now = DateTime.now();
-    final target = DateTime(now.year, now.month, now.day, h, m);
+    final now = nowInTehran();
+    final target = tz.TZDateTime(_tehran, now.year, now.month, now.day, h, m);
     if (!target.isAfter(now)) return false;
-
-    final scheduledTz = tz.TZDateTime.from(target.toUtc(), tz.UTC);
 
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'vibeflow_tasks',
@@ -239,23 +242,27 @@ class NotificationService {
         id,
         '🔔 نوبت فعالیت: $title',
         'مدت‌زمان: $durationMinutes دقیقه | الان شروع کن!',
-        scheduledTz,
+        target,
         details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
       );
     } catch (_) {
-      await _notificationsPlugin.zonedSchedule(
-        id,
-        '🔔 نوبت فعالیت: $title',
-        'مدت‌زمان: $durationMinutes دقیقه | الان شروع کن!',
-        scheduledTz,
-        details,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-      );
+      try {
+        await _notificationsPlugin.zonedSchedule(
+          id,
+          '🔔 نوبت فعالیت: $title',
+          'مدت‌زمان: $durationMinutes دقیقه | الان شروع کن!',
+          target,
+          details,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
+        );
+      } catch (_) {
+        return false;
+      }
     }
     return true;
   }
@@ -264,6 +271,15 @@ class NotificationService {
 // ==================== موتور هوشمند تشخیص خودکار مدل و ارتباط با جمنای ====================
 class GeminiService {
   static String? _cachedModel;
+
+  static bool isTextGenerationModel(String name) {
+    final lowerName = name.toLowerCase();
+    return !lowerName.contains('tts') &&
+        !lowerName.contains('audio') &&
+        !lowerName.contains('image') &&
+        !lowerName.contains('embedding') &&
+        !lowerName.contains('live');
+  }
 
   static Future<String> getApiKey() async {
     final prefs = await SharedPreferences.getInstance();
@@ -286,8 +302,9 @@ class GeminiService {
         final supported = <String>[];
         for (var m in list) {
           final methods = (m['supportedGenerationMethods'] as List?) ?? [];
-          if (methods.contains('generateContent')) {
-            supported.add(m['name'].toString());
+          final name = m['name'].toString();
+          if (methods.contains('generateContent') && isTextGenerationModel(name)) {
+            supported.add(name);
           }
         }
         return supported;
@@ -311,28 +328,26 @@ class GeminiService {
       throw Exception('کلید API وارد نشده است. از آیکون کلید بالای صفحه استفاده کنید.');
     }
 
-    List<String> targetModels = [];
+    List<String> targetModels = [
+      'models/gemini-2.5-flash',
+      'models/gemini-2.0-flash',
+      'models/gemini-flash-latest',
+    ];
 
     if (_cachedModel != null) {
       targetModels.add(_cachedModel!);
     } else {
       final activeFromGoogle = await fetchActiveModels(apiKey);
       if (activeFromGoogle.isNotEmpty) {
-        final flashModels = activeFromGoogle.where((m) => m.toLowerCase().contains('flash')).toList();
+        final flashModels = activeFromGoogle
+            .where((m) => m.toLowerCase().contains('flash'))
+            .toList();
         if (flashModels.isNotEmpty) {
           targetModels.addAll(flashModels);
         }
         targetModels.addAll(activeFromGoogle);
       }
     }
-
-    targetModels.addAll([
-      'models/gemini-2.0-flash',
-      'models/gemini-1.5-flash',
-      'models/gemini-2.5-flash',
-      'models/gemini-flash-latest',
-      'models/gemini-1.5-flash-latest',
-    ]);
 
     targetModels = targetModels.toSet().toList();
     String lastError = '';
@@ -373,7 +388,12 @@ class GeminiService {
         } else if (response.statusCode == 404) {
           lastError = 'مدل $modelPath در دسترس نیست (404)';
           continue;
-        } else if (response.statusCode == 400 || response.statusCode == 403) {
+        } else if (response.statusCode == 400) {
+          final errData = jsonDecode(response.body);
+          lastError = 'مدل $modelPath: ${errData['error']?['message'] ?? 'درخواست پشتیبانی نشد'}';
+          _cachedModel = null;
+          continue;
+        } else if (response.statusCode == 403) {
           try {
             final errData = jsonDecode(response.body);
             final msg = errData['error']['message'] ?? '';
@@ -636,7 +656,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     final key = prefs.getString('geminiApiKey') ?? '';
-    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final today = NotificationService.todayInTehran();
     final savedDay = prefs.getString('active_day_date') ?? '';
 
     if (!mounted) return;
@@ -673,7 +693,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   // فرآیند دکمه "امروزو شروع کردم 🚀"
   Future<void> _startMyDay() async {
-    final now = DateTime.now();
+    final now = NotificationService.nowInTehran();
     final currentH = now.hour.toString().padLeft(2, '0');
     final currentM = now.minute.toString().padLeft(2, '0');
     final currentTime = '$currentH:$currentM';
@@ -712,6 +732,18 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
     if (shouldShift == null) return;
 
+    final notificationsAllowed = await NotificationService.requestPermissions();
+    if (!notificationsAllowed) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.redAccent,
+          content: Text('دسترسی اعلان‌ها خاموش است؛ آن را از تنظیمات برنامه فعال کنید.'),
+        ),
+      );
+      return;
+    }
+
     for (final task in tasks) {
       task.startTime = task.originalStartTime;
     }
@@ -734,7 +766,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final today = NotificationService.todayInTehran();
     await prefs.setString('active_day_date', today);
     await prefs.setString('active_day_started_time', currentTime);
     await _saveData();
@@ -1471,7 +1503,7 @@ class _AiVocabularyScreenState extends State<AiVocabularyScreen> {
 
   Future<void> _loadVocabState() async {
     final prefs = await SharedPreferences.getInstance();
-    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final today = NotificationService.todayInTehran();
     final lastDate = prefs.getString('vocab_date') ?? '';
 
     if (!mounted) return;
