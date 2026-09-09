@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 import 'dart:convert';
 import 'dart:async';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.init();
   runApp(const RoutineMasterApp());
 }
 
@@ -88,16 +93,211 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 }
 
-// ==================== موتور ارتباط و تست هوش مصنوعی (GEMINI API) ====================
+// ==================== سرویس نوتیفیکیشن‌های اندروید ====================
+class NotificationService {
+  static final FlutterLocalNotificationsPlugin _notificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+  static bool _isInitialized = false;
+
+  static Future<void> init() async {
+    if (_isInitialized) return;
+    try {
+      tz.initializeTimeZones();
+      const AndroidInitializationSettings androidSettings =
+          AndroidInitializationSettings('@mipmap/ic_launcher');
+
+      const InitializationSettings initSettings = InitializationSettings(
+        android: androidSettings,
+      );
+
+      await _notificationsPlugin.initialize(initSettings);
+      _isInitialized = true;
+    } catch (_) {}
+  }
+
+  static Future<bool> requestPermissions() async {
+    try {
+      final android = _notificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      if (android != null) {
+        await android.requestNotificationsPermission();
+        await android.requestExactAlarmsPermission();
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  static Future<void> cancelAll() async {
+    await _notificationsPlugin.cancelAll();
+  }
+
+  static Future<void> showInstant({
+    required int id,
+    required String title,
+    required String body,
+  }) async {
+    await init();
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'vibeflow_channel',
+      'هشدار فوری برنامه',
+      channelDescription: 'نوتیفیکیشن هنگام شروع و رسیدن به وقت تسک‌ها',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+    );
+    const NotificationDetails details = NotificationDetails(android: androidDetails);
+    await _notificationsPlugin.show(id, title, body, details);
+  }
+
+  // نوتیفیکیشن ساعت ۴ صبح برای شروع روز
+  static Future<void> scheduleDailyWakeup() async {
+    await init();
+    final now = DateTime.now();
+    var target = DateTime(now.year, now.month, now.day, 4, 0);
+    if (target.isBefore(now)) {
+      target = target.add(const Duration(days: 1));
+    }
+
+    final scheduledTz = tz.TZDateTime.from(target.toUtc(), tz.UTC);
+
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'vibeflow_wakeup',
+      'بیدارباش ۴ صبح',
+      channelDescription: 'نوتیفیکیشن ساعت ۴ صبح برای آغاز روز کاری',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+    );
+    const NotificationDetails details = NotificationDetails(android: androidDetails);
+
+    try {
+      await _notificationsPlugin.zonedSchedule(
+        9999,
+        '⏰ وقت بیداری و شروع روز کاری!',
+        'ساعت ۴ صبح شد! وارد اپ شو و دکمه «امروزو شروع کردم» را لمس کن 🚀',
+        scheduledTz,
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+    } catch (_) {
+      await _notificationsPlugin.zonedSchedule(
+        9999,
+        '⏰ وقت بیداری و شروع روز کاری!',
+        'ساعت ۴ صبح شد! وارد اپ شو و دکمه «امروزو شروع کردم» را لمس کن 🚀',
+        scheduledTz,
+        details,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+    }
+  }
+
+  // تنظیم نوتیفیکیشن سر ساعت شروع هر تسک
+  static Future<void> scheduleTaskNotification({
+    required int id,
+    required String title,
+    required String timeStr,
+    required int durationMinutes,
+  }) async {
+    await init();
+    final parts = timeStr.split(':');
+    if (parts.length != 2) return;
+    final h = int.parse(parts[0]);
+    final m = int.parse(parts[1]);
+
+    final now = DateTime.now();
+    final target = DateTime(now.year, now.month, now.day, h, m);
+    if (target.isBefore(now)) return;
+
+    final scheduledTz = tz.TZDateTime.from(target.toUtc(), tz.UTC);
+
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'vibeflow_tasks',
+      'یادآور فعالیت‌ها',
+      channelDescription: 'اعلان دقیق در زمان نوبت هر تسک',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+    );
+    const NotificationDetails details = NotificationDetails(android: androidDetails);
+
+    try {
+      await _notificationsPlugin.zonedSchedule(
+        id,
+        '🔔 نوبت فعالیت: $title',
+        'مدت‌زمان: $durationMinutes دقیقه | الان شروع کن!',
+        scheduledTz,
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+      );
+    } catch (_) {
+      await _notificationsPlugin.zonedSchedule(
+        id,
+        '🔔 نوبت فعالیت: $title',
+        'مدت‌زمان: $durationMinutes دقیقه | الان شروع کن!',
+        scheduledTz,
+        details,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+      );
+    }
+  }
+}
+
+// ==================== موتور هوشمند تشخیص خودکار مدل و ارتباط با جمنای ====================
 class GeminiService {
+  static String? _cachedModel;
+
   static Future<String> getApiKey() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('geminiApiKey') ?? '';
+    return (prefs.getString('geminiApiKey') ?? '').trim();
   }
 
   static Future<void> saveApiKey(String key) async {
     final prefs = await SharedPreferences.getInstance();
+    _cachedModel = null;
     await prefs.setString('geminiApiKey', key.trim());
+  }
+
+  static Future<List<String>> fetchActiveModels(String apiKey) async {
+    try {
+      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models?key=$apiKey');
+      final res = await http.get(url).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final list = (data['models'] as List?) ?? [];
+        final supported = <String>[];
+        for (var m in list) {
+          final methods = (m['supportedGenerationMethods'] as List?) ?? [];
+          if (methods.contains('generateContent')) {
+            supported.add(m['name'].toString());
+          }
+        }
+        return supported;
+      } else {
+        try {
+          final errData = jsonDecode(res.body);
+          if (errData['error'] != null && errData['error']['message'] != null) {
+            throw Exception('گوگل: ${errData['error']['message']}');
+          }
+        } catch (_) {}
+      }
+    } catch (e) {
+      if (e.toString().contains('گوگل:')) rethrow;
+    }
+    return [];
   }
 
   static Future<String> generate(String prompt) async {
@@ -106,14 +306,38 @@ class GeminiService {
       throw Exception('کلید API وارد نشده است. از آیکون کلید بالای صفحه استفاده کنید.');
     }
 
-    // تست ترتیبی مدل‌های معتبر جمنای با پشتیبانی از نسخه 2.0 Flash
-    final models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash'];
+    List<String> targetModels = [];
+
+    if (_cachedModel != null) {
+      targetModels.add(_cachedModel!);
+    } else {
+      final activeFromGoogle = await fetchActiveModels(apiKey);
+      if (activeFromGoogle.isNotEmpty) {
+        final flashModels = activeFromGoogle.where((m) => m.toLowerCase().contains('flash')).toList();
+        if (flashModels.isNotEmpty) {
+          targetModels.addAll(flashModels);
+        }
+        targetModels.addAll(activeFromGoogle);
+      }
+    }
+
+    targetModels.addAll([
+      'models/gemini-2.0-flash',
+      'models/gemini-1.5-flash',
+      'models/gemini-2.5-flash',
+      'models/gemini-flash-latest',
+      'models/gemini-1.5-flash-latest',
+    ]);
+
+    targetModels = targetModels.toSet().toList();
     String lastError = '';
 
-    for (final model in models) {
+    for (final rawModel in targetModels) {
+      final modelPath = rawModel.startsWith('models/') ? rawModel : 'models/$rawModel';
+
       try {
         final url = Uri.parse(
-            'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey');
+            'https://generativelanguage.googleapis.com/v1beta/$modelPath:generateContent?key=$apiKey');
 
         final response = await http
             .post(
@@ -137,20 +361,27 @@ class GeminiService {
           if (candidates != null && candidates.isNotEmpty) {
             final parts = candidates[0]['content']['parts'] as List?;
             if (parts != null && parts.isNotEmpty) {
+              _cachedModel = modelPath;
               return parts[0]['text'] as String;
             }
           }
-          throw Exception('پاسخی از هوش مصنوعی دریافت نشد.');
         } else if (response.statusCode == 404) {
-          lastError = 'مدل $model در دسترس نیست (404)';
-          continue; // مدل بعدی را امتحان کن
+          lastError = 'مدل $modelPath در دسترس نیست (404)';
+          continue;
         } else if (response.statusCode == 400 || response.statusCode == 403) {
-          throw Exception('خطای گوگل (${response.statusCode}): کلید نامعتبر است یا موقعیت مکانی تحریم است (فیلترشکن باید روشن باشد).');
+          try {
+            final errData = jsonDecode(response.body);
+            final msg = errData['error']['message'] ?? '';
+            throw Exception('خطای گوگل (${response.statusCode}): $msg');
+          } catch (e) {
+            if (e.toString().contains('خطای گوگل')) rethrow;
+            throw Exception('خطای گوگل (${response.statusCode}): کلید نامعتبر است یا آی‌پی ایران تحریم است.');
+          }
         } else {
-          throw Exception('کد خطای سرور گوگل: ${response.statusCode}');
+          lastError = 'خطای سرور گوگل: ${response.statusCode}';
         }
       } on TimeoutException {
-        throw Exception('تایم‌اوت ۱۵ ثانیه‌ای: پاسخی نیامد! لطفاً فیلترشکن را بررسی یا عوض کنید.');
+        throw Exception('تایم‌اوت ۱۵ ثانیه: پاسخی دریافت نشد! لطفاً فیلترشکن را بررسی یا عوض کنید.');
       } catch (e) {
         if (e.toString().contains('SocketException')) {
           throw Exception('عدم اتصال به سرور گوگل. از اتصال اینترنت و فیلترشکن مطمئن شوید.');
@@ -159,7 +390,7 @@ class GeminiService {
       }
     }
 
-    throw Exception(lastError.isNotEmpty ? lastError : 'خطا در ارتباط با سرور جمنای');
+    throw Exception(lastError.isNotEmpty ? lastError : 'هیچ مدل فعالی برای این کلید پیدا نشد.');
   }
 
   static String cleanJsonArray(String raw) {
@@ -232,7 +463,7 @@ class GeminiService {
                             }
                             setDialogState(() {
                               isTesting = true;
-                              testResult = 'در حال تست ارتباط با گوگل...';
+                              testResult = 'در حال ارتباط با گوگل و شناسایی مدل‌های فعال...';
                             });
 
                             try {
@@ -241,7 +472,7 @@ class GeminiService {
                               setDialogState(() {
                                 isTesting = false;
                                 isSuccess = true;
-                                testResult = 'اتصال موفقیت‌آمیز بود! کلید و فیلترشکن بدون مشکل کار می‌کنند ✅ ($res)';
+                                testResult = 'اتصال ۱۰۰٪ برقرار شد! مدل فعال: $_cachedModel ✅';
                               });
                             } catch (err) {
                               setDialogState(() {
@@ -254,7 +485,7 @@ class GeminiService {
                     icon: isTesting
                         ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.network_check, size: 18),
-                    label: const Text('تست اتصال و فیلترشکن'),
+                    label: const Text('تست اتصال و مدل خودکار'),
                   ),
                 ),
                 if (testResult.isNotEmpty) ...[
@@ -346,11 +577,15 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   final int blinkTarget = 90;
   List<TaskItem> tasks = [];
   bool hasApiKey = false;
+  bool isDayStarted = false;
+  String startedTimeStr = '';
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    NotificationService.requestPermissions();
+    NotificationService.scheduleDailyWakeup();
   }
 
   void _loadDefaultTasks() {
@@ -386,10 +621,16 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     final key = prefs.getString('geminiApiKey') ?? '';
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final savedDay = prefs.getString('active_day_date') ?? '';
+
     setState(() {
       hasApiKey = key.isNotEmpty;
       shegtoryCount = prefs.getInt('shegtoryCount') ?? 0;
       blinkCount = prefs.getInt('blinkCount') ?? 0;
+      isDayStarted = (savedDay == today);
+      startedTimeStr = prefs.getString('active_day_started_time') ?? '';
+
       final savedTasks = prefs.getString('tasksList');
       if (savedTasks != null) {
         final List decoded = jsonDecode(savedTasks);
@@ -406,6 +647,101 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     await prefs.setInt('blinkCount', blinkCount);
     final encoded = jsonEncode(tasks.map((t) => t.toMap()).toList());
     await prefs.setString('tasksList', encoded);
+  }
+
+  // فرآیند دکمه "امروزو شروع کردم 🚀"
+  Future<void> _startMyDay() async {
+    final now = DateTime.now();
+    final currentH = now.hour.toString().padLeft(2, '0');
+    final currentM = now.minute.toString().padLeft(2, '0');
+    final currentTime = '$currentH:$currentM';
+
+    final shouldShift = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text('🚀 شروع رسمی روز کاری', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('ساعت ورود شما: $currentTime',
+                style: const TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            const Text(
+              'می‌خواهید برنامه‌ها از همین ساعت مرتب شوند یا طبق ساعات جدول اصلی نوتیفیکیشن‌ها ست شوند؟',
+              style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('ساعات جدول اصلی', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('شیفت از همین لحظه', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldShift == null) return;
+
+    if (shouldShift) {
+      int currentMinutes = now.hour * 60 + now.minute;
+      for (var t in tasks) {
+        if (!t.isEnabled) continue;
+        final h = (currentMinutes ~/ 60).toString().padLeft(2, '0');
+        final m = (currentMinutes % 60).toString().padLeft(2, '0');
+        t.startTime = '$h:$m';
+        currentMinutes += t.durationMinutes;
+      }
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    await prefs.setString('active_day_date', today);
+    await prefs.setString('active_day_started_time', currentTime);
+    await _saveData();
+
+    await NotificationService.cancelAll();
+    await NotificationService.scheduleDailyWakeup();
+
+    int scheduledCount = 0;
+    for (int i = 0; i < tasks.length; i++) {
+      final t = tasks[i];
+      if (!t.isEnabled) continue;
+      await NotificationService.scheduleTaskNotification(
+        id: i + 100,
+        title: t.title,
+        timeStr: t.startTime,
+        durationMinutes: t.durationMinutes,
+      );
+      scheduledCount++;
+    }
+
+    await NotificationService.showInstant(
+      id: 1,
+      title: '🚀 روز کاری فعال شد!',
+      body: 'ساعت شروع: $currentTime | نوتیفیکیشن برای $scheduledCount تسک با موفقیت فعال شد.',
+    );
+
+    setState(() {
+      isDayStarted = true;
+      startedTimeStr = currentTime;
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFF10B981),
+          content: Text('روز کاری آغاز شد! نوتیفیکیشن برای $scheduledCount فعالیت تنظیم شد ✅'),
+        ),
+      );
+    }
   }
 
   void _editTaskDialog(TaskItem task) {
@@ -506,6 +842,52 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       ),
       body: Column(
         children: [
+          // بنر دکمه "امروزو شروع کردم 🚀"
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            color: isDayStarted ? const Color(0xFF064E3B) : const Color(0xFF312E81),
+            child: Row(
+              children: [
+                Icon(
+                  isDayStarted ? Icons.check_circle : Icons.rocket_launch,
+                  color: isDayStarted ? Colors.greenAccent : Colors.amberAccent,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isDayStarted ? 'روز کاری فعال است' : 'روز کاری هنوز شروع نشده',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      Text(
+                        isDayStarted
+                            ? 'شروع از ساعت $startedTimeStr | نوتیفیکیشن‌ها فعالند'
+                            : 'آلارم ۴ صبح آماده است | هنگام بیداری دکمه را لمس کنید',
+                        style: const TextStyle(color: Colors.white70, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isDayStarted ? const Color(0xFF10B981) : Colors.amberAccent,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  ),
+                  onPressed: _startMyDay,
+                  child: Text(
+                    isDayStarted ? 'تنظیم مجدد' : 'امروزو شروع کردم 🚀',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // بخش آمار ریپلای‌های توییتر
           Container(
             padding: const EdgeInsets.all(12),
             color: const Color(0xFF1E293B),
@@ -523,6 +905,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               ],
             ),
           ),
+
+          // لیست تسک‌ها
           Expanded(
             child: ListView.builder(
               itemCount: tasks.length,
