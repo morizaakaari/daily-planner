@@ -151,7 +151,8 @@ class NotificationService {
     await _notificationsPlugin.show(id, title, body, details);
   }
 
-  // نوتیفیکیشن ساعت ۴ صبح برای شروع روز
+  // نوتیفیکیشن ساعت ۴ صبح برای شروع روز. به‌جای recurrence مبتنی بر UTC
+  // چند اعلان one-shot می‌سازیم تا ساعت ۴ محلی (حتی اطراف DST) حفظ شود.
   static Future<void> scheduleDailyWakeup() async {
     await init();
     final now = DateTime.now();
@@ -159,8 +160,6 @@ class NotificationService {
     if (target.isBefore(now)) {
       target = target.add(const Duration(days: 1));
     }
-
-    final scheduledTz = tz.TZDateTime.from(target.toUtc(), tz.UTC);
 
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'vibeflow_wakeup',
@@ -173,9 +172,12 @@ class NotificationService {
     );
     const NotificationDetails details = NotificationDetails(android: androidDetails);
 
-    try {
-      await _notificationsPlugin.zonedSchedule(
-        9999,
+    for (var day = 0; day < 30; day++) {
+      final localTarget = target.add(Duration(days: day));
+      final scheduledTz = tz.TZDateTime.from(localTarget.toUtc(), tz.UTC);
+      try {
+        await _notificationsPlugin.zonedSchedule(
+          9900 + day,
         '⏰ وقت بیداری و شروع روز کاری!',
         'ساعت ۴ صبح شد! وارد اپ شو و دکمه «امروزو شروع کردم» را لمس کن 🚀',
         scheduledTz,
@@ -183,11 +185,10 @@ class NotificationService {
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
-        matchDateTimeComponents: DateTimeComponents.time,
-      );
-    } catch (_) {
-      await _notificationsPlugin.zonedSchedule(
-        9999,
+        );
+      } catch (_) {
+        await _notificationsPlugin.zonedSchedule(
+          9900 + day,
         '⏰ وقت بیداری و شروع روز کاری!',
         'ساعت ۴ صبح شد! وارد اپ شو و دکمه «امروزو شروع کردم» را لمس کن 🚀',
         scheduledTz,
@@ -195,13 +196,13 @@ class NotificationService {
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
-        matchDateTimeComponents: DateTimeComponents.time,
-      );
+        );
+      }
     }
   }
 
   // تنظیم نوتیفیکیشن سر ساعت شروع هر تسک
-  static Future<void> scheduleTaskNotification({
+  static Future<bool> scheduleTaskNotification({
     required int id,
     required String title,
     required String timeStr,
@@ -209,13 +210,16 @@ class NotificationService {
   }) async {
     await init();
     final parts = timeStr.split(':');
-    if (parts.length != 2) return;
-    final h = int.parse(parts[0]);
-    final m = int.parse(parts[1]);
+    if (parts.length != 2) return false;
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null || h < 0 || h > 23 || m < 0 || m > 59) {
+      return false;
+    }
 
     final now = DateTime.now();
     final target = DateTime(now.year, now.month, now.day, h, m);
-    if (target.isBefore(now)) return;
+    if (!target.isAfter(now)) return false;
 
     final scheduledTz = tz.TZDateTime.from(target.toUtc(), tz.UTC);
 
@@ -253,6 +257,7 @@ class NotificationService {
             UILocalNotificationDateInterpretation.absoluteTime,
       );
     }
+    return true;
   }
 }
 
@@ -300,8 +305,8 @@ class GeminiService {
     return [];
   }
 
-  static Future<String> generate(String prompt) async {
-    final apiKey = await getApiKey();
+  static Future<String> generate(String prompt, {String? apiKeyOverride}) async {
+    final apiKey = (apiKeyOverride ?? await getApiKey()).trim();
     if (apiKey.isEmpty) {
       throw Exception('کلید API وارد نشده است. از آیکون کلید بالای صفحه استفاده کنید.');
     }
@@ -435,6 +440,9 @@ class GeminiService {
                 const SizedBox(height: 10),
                 TextField(
                   controller: controller,
+                  obscureText: true,
+                  enableSuggestions: false,
+                  autocorrect: false,
                   style: const TextStyle(color: Colors.white, fontSize: 13),
                   decoration: const InputDecoration(
                     hintText: 'AIzaSy...',
@@ -467,8 +475,7 @@ class GeminiService {
                             });
 
                             try {
-                              await saveApiKey(testKey);
-                              final res = await generate('Reply: OK');
+                              await generate('Reply with exactly: OK', apiKeyOverride: testKey);
                               setDialogState(() {
                                 isTesting = false;
                                 isSuccess = true;
@@ -531,6 +538,7 @@ class TaskItem {
   String id;
   String title;
   String startTime;
+  String originalStartTime;
   int durationMinutes;
   String category;
   bool isEnabled;
@@ -539,15 +547,17 @@ class TaskItem {
     required this.id,
     required this.title,
     required this.startTime,
+    String? originalStartTime,
     required this.durationMinutes,
     required this.category,
     this.isEnabled = true,
-  });
+  }) : originalStartTime = originalStartTime ?? startTime;
 
   Map<String, dynamic> toMap() => {
         'id': id,
         'title': title,
         'startTime': startTime,
+        'originalStartTime': originalStartTime,
         'durationMinutes': durationMinutes,
         'category': category,
         'isEnabled': isEnabled,
@@ -557,6 +567,7 @@ class TaskItem {
         id: map['id'],
         title: map['title'],
         startTime: map['startTime'],
+        originalStartTime: map['originalStartTime'] ?? map['startTime'],
         durationMinutes: map['durationMinutes'],
         category: map['category'],
         isEnabled: map['isEnabled'] ?? true,
@@ -584,8 +595,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   void initState() {
     super.initState();
     _loadData();
-    NotificationService.requestPermissions();
-    NotificationService.scheduleDailyWakeup();
+    _initializeNotifications();
+  }
+
+  Future<void> _initializeNotifications() async {
+    await NotificationService.requestPermissions();
+    await NotificationService.scheduleDailyWakeup();
   }
 
   void _loadDefaultTasks() {
@@ -624,21 +639,28 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     final today = DateTime.now().toIso8601String().substring(0, 10);
     final savedDay = prefs.getString('active_day_date') ?? '';
 
+    if (!mounted) return;
     setState(() {
       hasApiKey = key.isNotEmpty;
-      shegtoryCount = prefs.getInt('shegtoryCount') ?? 0;
-      blinkCount = prefs.getInt('blinkCount') ?? 0;
+      shegtoryCount = savedDay == today ? (prefs.getInt('shegtoryCount') ?? 0) : 0;
+      blinkCount = savedDay == today ? (prefs.getInt('blinkCount') ?? 0) : 0;
       isDayStarted = (savedDay == today);
-      startedTimeStr = prefs.getString('active_day_started_time') ?? '';
+      startedTimeStr = isDayStarted ? (prefs.getString('active_day_started_time') ?? '') : '';
 
       final savedTasks = prefs.getString('tasksList');
       if (savedTasks != null) {
         final List decoded = jsonDecode(savedTasks);
         tasks = decoded.map((item) => TaskItem.fromMap(item)).toList();
+        if (!isDayStarted) {
+          for (final task in tasks) {
+            task.startTime = task.originalStartTime;
+          }
+        }
       } else {
         _loadDefaultTasks();
       }
     });
+    if (savedDay != today) await _saveData();
   }
 
   Future<void> _saveData() async {
@@ -690,10 +712,20 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
     if (shouldShift == null) return;
 
+    for (final task in tasks) {
+      task.startTime = task.originalStartTime;
+    }
     if (shouldShift) {
       int currentMinutes = now.hour * 60 + now.minute;
       for (var t in tasks) {
         if (!t.isEnabled) continue;
+        final originalParts = t.originalStartTime.split(':');
+        if (originalParts.length != 2) continue;
+        final hour = int.tryParse(originalParts[0]);
+        final minute = int.tryParse(originalParts[1]);
+        if (hour == null || minute == null) continue;
+        final originalMinutes = hour * 60 + minute;
+        if (originalMinutes < currentMinutes) continue;
         final h = (currentMinutes ~/ 60).toString().padLeft(2, '0');
         final m = (currentMinutes % 60).toString().padLeft(2, '0');
         t.startTime = '$h:$m';
@@ -714,13 +746,13 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     for (int i = 0; i < tasks.length; i++) {
       final t = tasks[i];
       if (!t.isEnabled) continue;
-      await NotificationService.scheduleTaskNotification(
+      final wasScheduled = await NotificationService.scheduleTaskNotification(
         id: i + 100,
         title: t.title,
         timeStr: t.startTime,
         durationMinutes: t.durationMinutes,
       );
-      scheduledCount++;
+      if (wasScheduled) scheduledCount++;
     }
 
     await NotificationService.showInstant(
@@ -729,6 +761,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       body: 'ساعت شروع: $currentTime | نوتیفیکیشن برای $scheduledCount تسک با موفقیت فعال شد.',
     );
 
+    if (!mounted) return;
     setState(() {
       isDayStarted = true;
       startedTimeStr = currentTime;
@@ -791,10 +824,20 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           ),
           ElevatedButton(
             onPressed: () {
+              final time = timeController.text.trim();
+              final match = RegExp(r'^(?:[01]\d|2[0-3]):[0-5]\d$').hasMatch(time);
+              final duration = int.tryParse(durationController.text);
+              if (titleController.text.trim().isEmpty || !match || duration == null || duration <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('عنوان، ساعت با قالب HH:mm و مدت مثبت را درست وارد کنید.')),
+                );
+                return;
+              }
               setState(() {
-                task.title = titleController.text;
-                task.startTime = timeController.text;
-                task.durationMinutes = int.tryParse(durationController.text) ?? task.durationMinutes;
+                task.title = titleController.text.trim();
+                task.startTime = time;
+                task.originalStartTime = time;
+                task.durationMinutes = duration;
               });
               _saveData();
               Navigator.pop(ctx);
@@ -1026,6 +1069,7 @@ class _AiNewsScreenState extends State<AiNewsScreen> {
 
   Future<void> _checkKey() async {
     final key = await GeminiService.getApiKey();
+    if (!mounted) return;
     setState(() => hasApiKey = key.isNotEmpty);
   }
 
@@ -1051,6 +1095,7 @@ Return ONLY a valid JSON array of objects (no markdown, no backticks):
       final rawText = await GeminiService.generate(prompt);
       final cleaned = GeminiService.cleanJsonArray(rawText);
       final List list = jsonDecode(cleaned);
+      if (!mounted) return;
       setState(() {
         newsList = list.map((item) => AiNewsItem.fromJson(item)).toList();
       });
@@ -1277,6 +1322,7 @@ class _HackathonRadarScreenState extends State<HackathonRadarScreen> {
 
   Future<void> _checkKey() async {
     final key = await GeminiService.getApiKey();
+    if (!mounted) return;
     setState(() => hasApiKey = key.isNotEmpty);
   }
 
@@ -1302,6 +1348,7 @@ Return ONLY valid JSON array (no markdown):
       final rawText = await GeminiService.generate(prompt);
       final cleaned = GeminiService.cleanJsonArray(rawText);
       final List list = jsonDecode(cleaned);
+      if (!mounted) return;
       setState(() {
         hackathons = list.map((item) => HackathonModel.fromJson(item)).toList();
       });
@@ -1427,6 +1474,7 @@ class _AiVocabularyScreenState extends State<AiVocabularyScreen> {
     final today = DateTime.now().toIso8601String().substring(0, 10);
     final lastDate = prefs.getString('vocab_date') ?? '';
 
+    if (!mounted) return;
     setState(() {
       knownWords = prefs.getStringList('known_words') ?? [];
       learningWords = prefs.getStringList('learning_words') ?? [];
@@ -1587,6 +1635,7 @@ class _CourseFinderScreenState extends State<CourseFinderScreen> {
 
   Future<void> _checkKey() async {
     final key = await GeminiService.getApiKey();
+    if (!mounted) return;
     setState(() => hasApiKey = key.isNotEmpty);
   }
 
@@ -1598,6 +1647,7 @@ class _CourseFinderScreenState extends State<CourseFinderScreen> {
       final rawText = await GeminiService.generate(prompt);
       final cleaned = GeminiService.cleanJsonArray(rawText);
       final List list = jsonDecode(cleaned);
+      if (!mounted) return;
       setState(() => courses = list.map((item) => CourseModel.fromJson(item)).toList());
     } catch (e) {
       if (mounted) {
