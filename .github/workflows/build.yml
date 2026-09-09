@@ -24,11 +24,35 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Generate Android Skeleton
+      - name: Generate Android Skeleton & Permissions
         run: |
           flutter create . --platforms=android
-          # اضافه کردن دسترسی اینترنت به اندروید برای ارتباط با جمنای
-          sed -i '/<application/i <uses-permission android:name="android.permission.INTERNET"/>' android/app/src/main/AndroidManifest.xml
+          python3 -c '
+          import os
+          manifest = "android/app/src/main/AndroidManifest.xml"
+          with open(manifest, "r") as f:
+              c = f.read()
+          perms = """
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+              <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+              <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
+              <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+              <uses-permission android:name="android.permission.VIBRATE"/>
+          """
+          c = c.replace("<application", perms + "    <application")
+          with open(manifest, "w") as f:
+              f.write(c)
+
+          kts = "android/app/build.gradle.kts"
+          if os.path.exists(kts):
+              with open(kts, "r") as f:
+                  k = f.read()
+              k = k.replace("compileOptions {", "compileOptions {\n        isCoreLibraryDesugaringEnabled = true")
+              k += "\ndependencies {\n    coreLibraryDesugaring(\"com.android.tools:desugar_jdk_libs:2.1.4\")\n}\n"
+              with open(kts, "w") as f:
+                  f.write(k)
+          '
 
       - name: Install Dependencies
         run: flutter pub get
