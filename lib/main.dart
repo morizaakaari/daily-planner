@@ -58,7 +58,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       body: _screens[_currentIndex],
       bottomNavigationBar: NavigationBar(
         backgroundColor: const Color(0xFF1E293B),
-        indicatorColor: const Color(0xFF6366F1).withOpacity(0.3),
+        indicatorColor: const Color(0xFF6366F1).withValues(alpha: 0.3),
         selectedIndex: _currentIndex,
         onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
         destinations: const [
@@ -500,7 +500,7 @@ class GeminiService {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: isSuccess ? Colors.green.withOpacity(0.15) : Colors.red.withOpacity(0.15),
+                      color: isSuccess ? Colors.green.withValues(alpha: 0.15) : Colors.red.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(color: isSuccess ? Colors.greenAccent : Colors.redAccent),
                     ),
@@ -963,7 +963,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                     color: const Color(0xFF1E293B),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
-                      side: BorderSide(color: color.withOpacity(0.4), width: 1.2),
+                      side: BorderSide(color: color.withValues(alpha: 0.4), width: 1.2),
                     ),
                     child: ListTile(
                       leading: Text(task.startTime, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13)),
@@ -1207,7 +1207,7 @@ Length: under 260 characters, include 2 hashtags. Return ONLY the tweet.
                                 children: [
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(color: const Color(0xFFE11D48).withOpacity(0.2), borderRadius: BorderRadius.circular(6)),
+                                    decoration: BoxDecoration(color: const Color(0xFFE11D48).withValues(alpha: 0.2), borderRadius: BorderRadius.circular(6)),
                                     child: Text(item.category, style: const TextStyle(color: Color(0xFFFB7185), fontSize: 11, fontWeight: FontWeight.bold)),
                                   ),
                                   const Spacer(),
@@ -1225,7 +1225,7 @@ Length: under 260 characters, include 2 hashtags. Return ONLY the tweet.
                                   decoration: BoxDecoration(
                                     color: Colors.black38,
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: Colors.blueAccent.withOpacity(0.4)),
+                                    border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.4)),
                                   ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1688,7 +1688,7 @@ class _CourseFinderScreenState extends State<CourseFinderScreen> {
               children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: selectedTopic,
+                    initialValue: selectedTopic,
                     dropdownColor: const Color(0xFF1E293B),
                     style: const TextStyle(color: Colors.white, fontSize: 13),
                     items: topics.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
